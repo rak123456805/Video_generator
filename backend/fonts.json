@@ -1,0 +1,35 @@
+{
+  "description": "Fonts required for rendering Indian languages in slide images",
+  "fonts": [
+    {
+      "language": "Kannada",
+      "file": "NotoSansKannada-Bold.ttf",
+      "download": "https://fonts.google.com/specimen/Noto+Sans+Kannada"
+    },
+    {
+      "language": "Hindi / Marathi",
+      "file": "NotoSansDevanagari-Bold.ttf",
+      "download": "https://fonts.google.com/specimen/Noto+Sans+Devanagari"
+    },
+    {
+      "language": "Tamil",
+      "file": "NotoSansTamil-Bold.ttf",
+      "download": "https://fonts.google.com/specimen/Noto+Sans+Tamil"
+    },
+    {
+      "language": "Telugu",
+      "file": "NotoSansTelugu-Bold.ttf",
+      "download": "https://fonts.google.com/specimen/Noto+Sans+Telugu"
+    },
+    {
+      "language": "Malayalam",
+      "file": "NotoSansMalayalam-Bold.ttf",
+      "download": "https://fonts.google.com/specimen/Noto+Sans+Malayalam"
+    },
+    {
+      "language": "Bengali",
+      "file": "NotoSansBengali-Bold.ttf",
+      "download": "https://fonts.google.com/specimen/Noto+Sans+Bengali"
+    }
+  ]
+}

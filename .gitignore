@@ -1,0 +1,27 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+
+# Build / Generated
+generated/
+dist/
+build/
+
+# Fonts (downloaded locally)
+fonts/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Editor
+.vscode/
+.idea/
