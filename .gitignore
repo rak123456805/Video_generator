@@ -1,9 +1,9 @@
-# --- Dependencies ---
+# Dependencies
 node_modules/
 jspm_packages/
 web_modules/
 bower_components/
-.npm
+.npm/
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
@@ -12,12 +12,12 @@ bower_components/
 !.yarn/versions
 .pnp.*
 
-# --- Environment / Secrets ---
+# Environment / Secrets
 .env
 .env.*
 !.env.example
 
-# --- Build & Output ---
+# Build & Output
 dist/
 build/
 out/
@@ -27,15 +27,16 @@ generated/
 .svelte-kit/
 .docusaurus/
 .vuepress/dist/
-**/.vitepress/dist/
-**/.vitepress/cache/
 .serverless/
 .fusebox/
 .temp/
 .cache/
 .parcel-cache/
+build/Release
+**/.vitepress/dist/
+**/.vitepress/cache/
 
-# --- Debug & Logs ---
+# Debug & Logs
 logs/
 *.log
 npm-debug.log*
@@ -45,15 +46,15 @@ lerna-debug.log*
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 vite.config.*.timestamp-*
 
-# --- Testing & Coverage ---
+# Testing & Coverage
 coverage/
 *.lcov
-.nyc_output
-.vscode-test
-lib-cov
-.grunt
+.nyc_output/
+.vscode-test/
+lib-cov/
+.grunt/
 
-# --- Editor / OS ---
+# Editor / OS
 .vscode/
 .idea/
 .DS_Store
@@ -64,13 +65,12 @@ Thumbs.db
 .node_repl_history
 .tern-port
 
-# --- Runtime / Misc ---
-pids
+# Runtime / Misc
+pids/
 *.pid
 *.seed
 *.pid.lock
 .lock-wscript
-build/Release
 *.tgz
 .yarn-integrity
 .dynamodb/
