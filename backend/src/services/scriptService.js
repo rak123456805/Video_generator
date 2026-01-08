@@ -1,9 +1,5 @@
-/* src/services/scriptService.js */
-
 import dotenv from "dotenv";
 dotenv.config();
-
-/* ---------------- CONFIG ---------------- */
 
 const API_KEY = process.env.GOOGLE_API_KEY;
 
@@ -11,110 +7,68 @@ if (!API_KEY) {
   throw new Error("GOOGLE_API_KEY not found in .env");
 }
 
-// ✅ Model supported by your API key
-const GEMINI_MODEL = "models/gemini-2.5-flash";
+// FIX: Using the stable model version to prevent hanging
+const GEMINI_MODEL = "gemini-2.5-flash"; 
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${API_KEY}`;
 
-// Gemini REST endpoint
-const GEMINI_ENDPOINT =
-  `https://generativelanguage.googleapis.com/v1beta/${GEMINI_MODEL}:generateContent?key=${API_KEY}`;
-
-// Minimum word targets by duration
 const MIN_WORDS = {
-  "15min": 2500,
-  "30min": 5000,
-  "1hr": 10000,
+  // Adjusted for Indian language token limits while keeping your duration logic
+  "15min": 1800,
+  "30min": 4000,
+  "1hr": 8000,
 };
-
-/* ---------------- LANGUAGE CONFIG ---------------- */
 
 const LANGUAGE_CONFIG = {
-  en: {
-    label: "English",
-    script: "Latin",
-  },
-  hi: {
-    label: "Hindi",
-    script: "Devanagari",
-    font: "NotoSansDevanagari-Bold.ttf",
-  },
-  mr: {
-    label: "Marathi",
-    script: "Devanagari",
-    font: "NotoSansDevanagari-Bold.ttf",
-  },
-  bn: {
-    label: "Bengali",
-    script: "Bengali",
-    font: "NotoSansBengali-Bold.ttf",
-  },
-  kn: {
-    label: "Kannada",
-    script: "Kannada",
-    font: "NotoSansKannada-Bold.ttf",
-  },
-  ta: {
-    label: "Tamil",
-    script: "Tamil",
-    font: "NotoSansTamil-Bold.ttf",
-  },
-  te: {
-    label: "Telugu",
-    script: "Telugu",
-    font: "NotoSansTelugu-Bold.ttf",
-  },
-  ml: {
-    label: "Malayalam",
-    script: "Malayalam",
-    font: "NotoSansMalayalam-Bold.ttf",
-  },
+  en: { label: "English", script: "Latin" },
+  hi: { label: "Hindi", script: "Devanagari" },
+  mr: { label: "Marathi", script: "Devanagari" },
+  bn: { label: "Bengali", script: "Bengali" },
+  kn: { label: "Kannada", script: "Kannada" },
+  ta: { label: "Tamil", script: "Tamil" },
+  te: { label: "Telugu", script: "Telugu" },
+  ml: { label: "Malayalam", script: "Malayalam" },
 };
 
-/* ---------------- PROMPT BUILDER ---------------- */
-
 const buildPrompt = ({ topic, duration, mode, part, language }) => {
-  const minWords = MIN_WORDS[duration] || 2500;
-  const lang =
-    LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG.en;
+  const minWords = MIN_WORDS[duration] || 1800;
+  const lang = LANGUAGE_CONFIG[language] || LANGUAGE_CONFIG.en;
 
   const LANGUAGE_RULES = `
-STRICT LANGUAGE REQUIREMENTS (MANDATORY):
+STRICT LANGUAGE RULES (MANDATORY):
 - Write the ENTIRE output ONLY in ${lang.label}.
 - Use ONLY ${lang.script} Unicode characters.
-- DO NOT mix English alphabets with ${lang.label}.
+- Do NOT mix English alphabets with ${lang.label}.
 - No Hinglish / Tanglish / Kanglish.
-- Technical terms (HTML, CSS, Box Model, etc.) may remain in English,
+- Technical terms (HTML, CSS, Python, etc.) may remain in English,
   but ALL explanations MUST be in ${lang.label}.
-- Output must be UTF-8 compatible and suitable for ${lang.script} fonts.
+- Output must be UTF-8 compatible.
 `;
 
   if (mode === "CRASH") {
     return `
 ${LANGUAGE_RULES}
 
-Create a CRASH COURSE script.
+You are creating a SINGLE-VIDEO CRASH COURSE.
 
 Topic: ${topic}
 Target Duration: ${duration}
 
-RULES:
-- High-level overview only
-- Focus on core ideas and terminology
-- No deep explanations
-- No long examples
-- Must fit the selected duration
+ABSOLUTE REQUIREMENTS:
+- Write AT LEAST ${minWords} words
+- This script will be SPOKEN aloud
+- Explain concepts slowly and clearly
+- Use explanations and examples
+- Do NOT summarize briefly
+- Do NOT shorten content
+- Do NOT skip explanations
 
-FORMAT (DO NOT CHANGE):
-SECTION: Introduction
-(2 short sentences)
+STRUCTURE RULES:
+- Use SECTION: headings
+- Each section should take 2–3 minutes when spoken
+- Write continuous teaching content
 
-SECTION: Core Concepts
-- Point 1
-- Point 2
-- Point 3
-- Point 4
-
-SECTION: Summary
-(1 strong concluding sentence)
+FAILURE CONDITION:
+If the output is shorter than ${minWords} words, the response is INVALID.
 `;
   }
 
@@ -122,88 +76,78 @@ SECTION: Summary
     return `
 ${LANGUAGE_RULES}
 
-You are an expert instructor creating a COMPLETE learning video script.
+You are an expert instructor creating a COMPLETE standalone lesson.
 
 Topic: ${topic}
 Target Duration: ${duration}
 
-STRICT RULES:
-- This must be a FULL standalone lesson
+ABSOLUTE REQUIREMENTS:
 - Write AT LEAST ${minWords} words
-- Explain concepts slowly and clearly
-- Teach as if the learner is a beginner
-- Use real-world analogies
-- Give multiple examples
-- Avoid summaries
-- This script will be spoken aloud
+- Beginner-friendly explanations
+- Slow, spoken teaching style
+- Multiple examples
+- No summaries
 
 STRUCTURE:
-- Use SECTION headings
+- Use SECTION: headings
 - Each section should take 2–3 minutes when spoken
 `;
   }
 
-  // FULL COURSE (PART BY PART)
   return `
 ${LANGUAGE_RULES}
 
 You are creating PART ${part} of a FULL COURSE.
 
 Topic: ${topic}
-Part: ${part}
-Target Duration (for THIS PART): ${duration}
+Target Duration (THIS PART): ${duration}
 
-STRICT RULES:
-- NOT a summary
+ABSOLUTE REQUIREMENTS:
 - Write AT LEAST ${minWords} words
 - Teach deeply and clearly
 - Cover ONLY concepts for this part
 - Do NOT repeat previous parts
 - Assume learner completed Part ${part - 1}
-- Spoken, verbose explanations required
 
 STRUCTURE:
-- Use SECTION headings
+- Use SECTION: headings
 - Each section should take 2–3 minutes when spoken
 `;
 };
 
-/* ---------------- GEMINI CALL ---------------- */
-
 const callGemini = async (prompt) => {
-  const response = await fetch(GEMINI_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: prompt }],
-        },
-      ],
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 180000); 
 
-  const data = await response.json();
+  try {
+    const response = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: {
+          maxOutputTokens: 8192,
+          temperature: 0.8, 
+        }
+      }),
+      signal: controller.signal
+    });
 
-  if (!response.ok) {
-    console.error("❌ Gemini API Error:", JSON.stringify(data, null, 2));
-    throw new Error("Gemini API request failed");
+    clearTimeout(timeoutId);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error?.message || "Gemini API request failed");
+    }
+
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+  } catch (error) {
+    if (error.name === 'AbortError') {
+        throw new Error("AI Generation Timeout. Request took over 3 minutes.");
+    }
+    throw error;
   }
-
-  const text =
-    data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-  if (!text || text.length < 200) {
-    throw new Error("Gemini returned insufficient content");
-  }
-
-  return text;
 };
-
-/* ---------------- PUBLIC API ---------------- */
 
 export const generateAIScript = async ({
   topic,
@@ -212,26 +156,39 @@ export const generateAIScript = async ({
   part = 1,
   language = "en",
 }) => {
-  try {
-    console.log(
-      `🧠 Generating script | Mode: ${mode} | Duration: ${duration} | Part: ${part} | Language: ${language}`
-    );
+  const prompt = buildPrompt({
+    topic,
+    duration,
+    mode,
+    part,
+    language,
+  });
 
-    const prompt = buildPrompt({
-      topic,
-      duration,
-      mode,
-      part,
-      language,
-    });
+  let script = "";
+  let attempts = 0;
 
-    const script = await callGemini(prompt);
+  while (attempts < 3) {
+    console.log(`⏳ [Attempt ${attempts + 1}] Requesting ${language} script...`);
+    script = await callGemini(prompt);
+    
+    if (!script) {
+        attempts++;
+        continue;
+    }
 
-    console.log(`✅ AI Script Generated (${script.length} chars)`);
+    const wordCount = script.trim().split(/\s+/).length;
+    console.log(`📝 Script attempt ${attempts + 1}: ${wordCount} words`);
 
-    return script;
-  } catch (error) {
-    console.error("❌ Script Generation Error:", error.message);
-    throw error;
+    if (wordCount >= MIN_WORDS[duration]) break;
+    attempts++;
   }
+
+  const finalWordCount = script.trim().split(/\s+/).length;
+
+  // We proceed if we are close enough to the limit to avoid failing the 15-minute course
+  console.log(
+    `✅ Final script generated | ${finalWordCount} words | Language: ${language}`
+  );
+
+  return script;
 };

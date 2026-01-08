@@ -11,17 +11,27 @@ import { generateVideoFromSlides } from "../services/slideVideoService.js";
 import { getAudioDuration } from "../services/audioService.js";
 import { mergeVideoAndAudio } from "../services/videoMergeService.js";
 
-/* Utility: wait for file to exist */
-const ensureFileExists = async (filePath, timeout = 30000) => {
+/* ---------------- SLIDE COUNT LOCK ---------------- */
+
+const SLIDES_PER_DURATION = {
+  "15min": 18,
+  "30min": 36,
+  "1hr": 72,
+};
+
+/* ---------------- UTILS ---------------- */
+
+const ensureFileExists = async (filePath, timeout = 120000) => {
   const start = Date.now();
   while (Date.now() - start < timeout) {
-    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 500) return true;
-    await new Promise((res) => setTimeout(res, 1000));
+    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 1000) return true;
+    await new Promise(r => setTimeout(r, 2000));
   }
   return false;
 };
 
 /* ---------------- CORE GENERATOR ---------------- */
+
 const processVideoGeneration = async ({
   topic,
   duration,
@@ -37,58 +47,31 @@ const processVideoGeneration = async ({
   const silentVideo = `silent-${timestamp}.mp4`;
   const finalVideo = `${mode.toLowerCase()}-${safeTopic}-${language}-p${part}-final.mp4`;
 
-  console.log(
-    `🚀 Generating | Mode: ${mode} | Topic: ${topic} | Duration: ${duration} | Part: ${part}`
-  );
+  const script = await generateAIScript({ topic, duration, mode, part, language });
 
-  // 1️⃣ Script
-  const script = await generateAIScript({
-    topic,
-    duration,
-    mode,
-    part,
-    language,
-  });
+  let slides = scriptToSlides(script);
+  if (!slides.length) throw new Error("No slides parsed");
 
-  // 2️⃣ Slides
-  const slides = scriptToSlides(script);
-  if (!slides.length) throw new Error("Slide parsing failed");
+  const expectedSlides = SLIDES_PER_DURATION[duration];
 
-  const slidePaths = await generateSlides(slides, slideFolder, topic);
-  if (!slidePaths.length) throw new Error("Slide generation failed");
+  if (slides.length > expectedSlides) {
+    slides = slides.slice(0, expectedSlides);
+  }
 
-  // 3️⃣ Audio
- const audioPath = await generateSpeech(script, audioFile, language);
+  while (slides.length < expectedSlides) {
+    slides.push({ ...slides[slides.length - 1] });
+  }
 
-// 🔐 HARD WAIT: ensure MP3 is finalized
-if (!(await ensureFileExists(audioPath, 60000))) {
-  throw new Error("Audio file not finalized properly");
-}
-console.log("🎧 Audio file size:", fs.statSync(audioPath).size, "bytes");
+  const slidePaths = await generateSlides(slides, slideFolder, topic, language);
 
-  // 4️⃣ Timing (CRITICAL FIX)
-  console.log("⏱ Reading audio duration...");
-const audioDuration = await getAudioDuration(audioPath);
-console.log("⏱ Audio duration:", audioDuration, "seconds");
+  if (!slidePaths.length) throw new Error("Slide rendering failed");
 
+  const audioPath = await generateSpeech(script, audioFile, language);
+  if (!(await ensureFileExists(audioPath))) throw new Error("Audio failed");
 
-  /**
-   * 🔐 SAFETY:
-   * - Minimum 3 seconds per slide
-   * - Prevents ultra-short silent videos
-   */
-  const slideTime = Math.max(
-    3,
-    audioDuration / slidePaths.length
-  );
+  const audioDuration = await getAudioDuration(audioPath);
+  const slideTime = Math.max(4, audioDuration / slidePaths.length);
 
-  console.log(
-    `🎬 Audio: ${audioDuration.toFixed(
-      2
-    )}s | Slides: ${slidePaths.length} | SlideTime: ${slideTime.toFixed(2)}s`
-  );
-
-  // 5️⃣ Silent video
   const slideDirPath = path.join(process.cwd(), "generated", slideFolder);
   const silentVideoPath = await generateVideoFromSlides(
     slideDirPath,
@@ -96,62 +79,35 @@ console.log("⏱ Audio duration:", audioDuration, "seconds");
     slideTime
   );
 
-  if (!(await ensureFileExists(silentVideoPath)))
-    throw new Error("Silent video generation failed");
+  if (!(await ensureFileExists(silentVideoPath))) {
+    throw new Error("Silent video failed");
+  }
 
-  // 6️⃣ Merge (audio controls duration)
   const finalOutputPath = path.join(process.cwd(), "generated", finalVideo);
   await mergeVideoAndAudio(silentVideoPath, audioPath, finalOutputPath);
 
   return {
     finalVideo: `/generated/${finalVideo}`,
     part,
-    actualDuration: `${Math.round(audioDuration)}s`,
+    duration,
   };
 };
 
 /* ---------------- API HANDLERS ---------------- */
 
 export const analyzeTopic = async (req, res) => {
-  const { topic, duration } = req.body;
-  if (!topic || !duration) {
-    return res.status(400).json({ success: false, message: "Missing data" });
-  }
-
-  const analysis = analyzeTopicSize(topic, duration);
-  res.json({ success: true, analysis });
-};
-
-export const generateSingleVideo = async (req, res) => {
   try {
-    const { topic, duration, language = "en" } = req.body;
-
+    const { topic, duration } = req.body;
     const analysis = analyzeTopicSize(topic, duration);
-    if (!analysis.feasible) {
-      return res.status(400).json({
-        success: false,
-        message: "Topic not feasible as single video",
-      });
-    }
-
-    const result = await processVideoGeneration({
-      topic,
-      duration,
-      mode: "SINGLE",
-      part: 1,
-      language,
-    });
-
-    res.json({ success: true, mode: "SINGLE", ...result });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.json({ success: true, analysis });
+  } catch {
+    res.status(500).json({ success: false });
   }
 };
 
 export const generateCrashCourse = async (req, res) => {
   try {
     const { topic, duration, language = "en" } = req.body;
-
     const result = await processVideoGeneration({
       topic,
       duration,
@@ -159,7 +115,6 @@ export const generateCrashCourse = async (req, res) => {
       part: 1,
       language,
     });
-
     res.json({ success: true, mode: "CRASH", ...result });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -169,7 +124,6 @@ export const generateCrashCourse = async (req, res) => {
 export const generateFullCoursePart = async (req, res) => {
   try {
     const { topic, duration, part = 1, language = "en" } = req.body;
-
     const analysis = analyzeTopicSize(topic, duration);
 
     const result = await processVideoGeneration({

@@ -1,95 +1,71 @@
 /* src/services/scriptToSlides.js */
 
-/**
- * Cleans slide text WITHOUT destroying Indian language Unicode.
- * Removes emojis, markdown, and unsafe symbols only.
- */
-const cleanSlideText = (text) =>
+const clean = (text = "") =>
   text
-    // Remove emojis only (not all Unicode)
-    .replace(
-      /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu,
-      ""
-    )
-    // Remove markdown artifacts
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
     .replace(/[#*_`]/g, "")
-    // Normalize spaces
     .replace(/\s+/g, " ")
     .trim();
 
 export const scriptToSlides = (script) => {
   const slides = [];
+  if (!script) return slides;
 
-  // Split by SECTION:
-  const rawSections = script
-    .split(/SECTION\s*:?/i)
-    .filter((s) => s.trim().length > 0);
+  const sections = script
+    .split(/SECTION\s*:/i)
+    .map(s => s.trim())
+    .filter(Boolean);
 
-  rawSections.forEach((sectionContent) => {
-    const lines = sectionContent
-      .trim()
+  sections.forEach((section, sectionIndex) => {
+    const lines = section
       .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
+      .map(l => l.trim())
+      .filter(Boolean);
 
     if (!lines.length) return;
 
-    const sectionTitle = cleanSlideText(lines[0]);
-    let currentBullets = [];
+    const title = clean(lines[0]);
 
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i];
-      const isBullet =
-        /^[-*•]/.test(line) || /^\d+\./.test(line);
+    const bulletLines = lines.filter(
+      l => /^[-*•]/.test(l) || /^\d+\./.test(l)
+    );
 
-      if (!isBullet) continue;
+    // ✅ BULLET MODE
+    if (bulletLines.length) {
+      let buffer = [];
 
-      const bullet = cleanSlideText(
-        line.replace(/^[-*•\d.]+\s*/, "")
-      );
+      bulletLines.forEach((line) => {
+        const bullet = clean(line.replace(/^[-*•\d.]+\s*/, ""));
+        if (!bullet) return;
 
-      if (!bullet) continue;
+        buffer.push(bullet);
 
-      // Max 4 bullets per slide
-      if (currentBullets.length >= 4) {
-        slides.push({
-          title: sectionTitle + " (Cont.)",
-          bullets: [...currentBullets],
-        });
-        currentBullets = [];
+        if (buffer.length === 3) {
+          slides.push({ title, bullets: [...buffer] });
+          buffer = [];
+        }
+      });
+
+      if (buffer.length) {
+        slides.push({ title, bullets: buffer });
       }
 
-      currentBullets.push(bullet);
+      return;
     }
 
-    if (currentBullets.length) {
+    // ✅ PARAGRAPH MODE (CRASH)
+    const sentences = section
+      .split(/[.!?।]\s+/)
+      .map(clean)
+      .filter(s => s.length > 30);
+
+    for (let i = 0; i < sentences.length; i += 2) {
       slides.push({
-        title: sectionTitle,
-        bullets: currentBullets,
+        title: title || `Concept ${sectionIndex + 1}`,
+        bullets: sentences.slice(i, i + 2),
       });
     }
   });
-
-  // Fallback if SECTION format breaks
-  if (!slides.length) {
-    console.warn("⚠️ Fallback slide parsing used");
-
-    const paragraphs = script
-      .split(/\n\s*\n/)
-      .filter((p) => p.trim().length > 30);
-
-    paragraphs.forEach((para, index) => {
-      const sentences = para
-        .split(/[.!?।]\s+/)
-        .slice(0, 3)
-        .map(cleanSlideText);
-
-      slides.push({
-        title: `Concept ${index + 1}`,
-        bullets: sentences,
-      });
-    });
-  }
 
   return slides;
 };

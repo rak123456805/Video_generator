@@ -5,65 +5,61 @@ import {
   ChevronRight,
   CheckCircle2,
   Play,
-  Download // Added Download icon
+  Download,
 } from "lucide-react";
 import apiClient from "../../api/client";
 
-interface GenerateVideoSectionProps {
-  isGenerating?: boolean;
-}
-
-export function GenerateVideoSection({}: GenerateVideoSectionProps) {
+export function GenerateVideoSection() {
   const [text, setText] = useState("");
   const [duration, setDuration] = useState("15");
   const [language, setLanguage] = useState("en");
+
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
 
   const [currentPart, setCurrentPart] = useState(1);
   const [hasNextPart, setHasNextPart] = useState(false);
   const [progressStep, setProgressStep] = useState<string | null>(null);
-  
-  // ✅ FIXED: Added missing state variable
   const [isFullCourse, setIsFullCourse] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const backendDuration = duration === "1" ? "1hr" : `${duration}min`;
   const BASE_URL = "http://localhost:5000";
 
-  /* ---------------- HELPERS ---------------- */
-  const buildVideoUrl = (finalVideoPath: string) => {
-    if (!finalVideoPath) return null;
-    return `${BASE_URL}${finalVideoPath}`;
-  };
+  const buildVideoUrl = (path: string) => `${BASE_URL}${path}`;
 
-  /* ---------------- INITIAL ANALYZE ---------------- */
+  /* ---------------- ANALYZE ---------------- */
   const handleGenerate = async () => {
     if (!text.trim()) return;
 
     setVideoUrl(null);
     setShowSuggestion(false);
     setHasNextPart(false);
-    setIsFullCourse(false); // Reset on new generate
+    setIsFullCourse(false);
     setCurrentPart(1);
-    setProgressStep("Analyzing topic and structuring course...");
+    setIsGenerating(true);
+    setProgressStep("Analyzing topic feasibility...");
 
     try {
-      const response = await apiClient.post("/video/analyze", {
+      const res = await apiClient.post("/video/analyze", {
         topic: text,
         duration: backendDuration,
       });
 
-      const analysisData = response.data.analysis;
+      const analysis = res.data.analysis;
 
-      if (analysisData.isLargeTopic && duration !== "1") {
+      // ✅ CORE FIX — matches backend
+      if (!analysis.feasible) {
         setProgressStep(null);
         setShowSuggestion(true);
+        setIsGenerating(false);
       } else {
         await generateCrashCourse();
       }
-    } catch (error) {
-      console.error(error);
-      setProgressStep("Analysis failed. Please check backend connection.");
+    } catch (err) {
+      console.error(err);
+      setProgressStep("Analysis failed. Backend not reachable.");
+      setIsGenerating(false);
     }
   };
 
@@ -72,19 +68,21 @@ export function GenerateVideoSection({}: GenerateVideoSectionProps) {
     try {
       setShowSuggestion(false);
       setIsFullCourse(false);
-      setProgressStep("Generating assets & AI Voiceover...");
+      setProgressStep("Generating Crash Course...");
 
-      const response = await apiClient.post("/video/crash-course", {
+      const res = await apiClient.post("/video/crash-course", {
         topic: text,
         duration: backendDuration,
-        language, 
+        language,
       });
 
-      setVideoUrl(buildVideoUrl(response.data.finalVideo));
+      setVideoUrl(buildVideoUrl(res.data.finalVideo));
       setProgressStep(null);
-    } catch (error) {
-      console.error(error);
-      setProgressStep("Generation failed. Try a shorter topic.");
+      setIsGenerating(false);
+    } catch (err) {
+      console.error(err);
+      setProgressStep("Crash Course generation failed.");
+      setIsGenerating(false);
     }
   };
 
@@ -92,23 +90,25 @@ export function GenerateVideoSection({}: GenerateVideoSectionProps) {
   const generateFullCourse = async () => {
     try {
       setShowSuggestion(false);
-      setIsFullCourse(true); // ✅ Now correctly updates state
+      setIsFullCourse(true);
       setCurrentPart(1);
-      setProgressStep("Generating Part 1 (Comprehensive)...");
+      setProgressStep("Generating Part 1 of Full Course...");
 
-      const response = await apiClient.post("/video/full-course/part", {
+      const res = await apiClient.post("/video/full-course/part", {
         topic: text,
-        part: 1,
         duration: backendDuration,
+        part: 1,
         language,
       });
 
-      setVideoUrl(buildVideoUrl(response.data.finalVideo));
-      setHasNextPart(response.data.hasNextPart);
+      setVideoUrl(buildVideoUrl(res.data.finalVideo));
+      setHasNextPart(res.data.hasNextPart);
       setProgressStep(null);
-    } catch (error) {
-      console.error(error);
-      setProgressStep("Failed to generate Full Course");
+      setIsGenerating(false);
+    } catch (err) {
+      console.error(err);
+      setProgressStep("Full Course generation failed.");
+      setIsGenerating(false);
     }
   };
 
@@ -116,158 +116,192 @@ export function GenerateVideoSection({}: GenerateVideoSectionProps) {
   const generateNextPart = async () => {
     try {
       const nextPart = currentPart + 1;
-      setVideoUrl(null);
-      setProgressStep(`Preparing Part ${nextPart}...`);
+      setProgressStep(`Generating Part ${nextPart}...`);
 
-      const response = await apiClient.post("/video/full-course/part", {
+      const res = await apiClient.post("/video/full-course/part", {
         topic: text,
-        part: nextPart,
         duration: backendDuration,
+        part: nextPart,
         language,
       });
 
-      setVideoUrl(buildVideoUrl(response.data.finalVideo));
+      setVideoUrl(buildVideoUrl(res.data.finalVideo));
       setCurrentPart(nextPart);
-      setHasNextPart(response.data.hasNextPart);
+      setHasNextPart(res.data.hasNextPart);
       setProgressStep(null);
-    } catch (error) {
-      console.error(error);
-      setProgressStep("Failed to load next part");
+    } catch (err) {
+      console.error(err);
+      setProgressStep("Next part failed.");
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 border border-gray-100 dark:border-gray-700 transition-all">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-          <Sparkles className="w-6 h-6 text-purple-600" />
-        </div>
-        <h3 className="text-2xl font-bold text-gray-800 dark:text-white">AI Instructor</h3>
+    <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl">
+      <div className="flex items-center gap-3 mb-6">
+        <Sparkles className="w-6 h-6 text-purple-600" />
+        <h3 className="text-2xl font-bold">AI Instructor</h3>
       </div>
 
+      {/* Updated Text Box */}
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        disabled={!!progressStep}
-        placeholder="Topic (e.g. CSS Box Model)"
-        className="w-full h-32 px-5 py-4 rounded-xl border-2 border-gray-100 focus:border-purple-500 bg-gray-50 dark:bg-gray-900 dark:border-gray-700 dark:text-white resize-none transition-all outline-none"
+        placeholder="Enter topic (e.g. CSS Box Model)"
+        className="w-full h-32 p-4 rounded-xl border border-gray-300 dark:border-gray-600 
+                   focus:border-purple-500 focus:ring-2 focus:ring-purple-300 
+                   dark:focus:ring-purple-700 transition-all duration-300
+                   bg-white dark:bg-gray-900 text-gray-900 dark:text-white
+                   placeholder-gray-500 dark:placeholder-gray-400
+                   resize-none"
       />
 
-      {/* Duration Selector */}
-      <div className="grid grid-cols-3 gap-4 mt-6">
-        {["15", "30", "1"].map((mins) => (
+      <div className="grid grid-cols-3 gap-3 mt-4">
+        {["15", "30", "1"].map((d) => (
           <button
-            key={mins}
-            disabled={!!progressStep}
-            onClick={() => setDuration(mins)}
-            className={`py-3 rounded-xl border-2 font-medium transition-all ${
-              duration === mins
-                ? "border-purple-600 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300"
-                : "border-gray-200 dark:border-gray-700 text-gray-500 hover:border-gray-300"
+            key={d}
+            onClick={() => setDuration(d)}
+            className={`p-3 rounded-xl transition-all duration-300 ${
+              duration === d 
+                ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg" 
+                : "border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
             }`}
           >
-            {mins === "1" ? "1 Hour" : `${mins} Minutes`}
+            {d === "1" ? "1 Hour" : `${d} Minutes`}
           </button>
         ))}
       </div>
 
-      {/* Language Selector */}
-      <div className="mt-6">
-        <label className="text-sm font-semibold text-gray-500 mb-2 block">Instruction Language</label>
-        <select
-          value={language}
-          disabled={!!progressStep}
-          onChange={(e) => setLanguage(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 dark:text-white outline-none focus:border-purple-500"
-        >
-          <option value="en">English (India)</option>
-          <option value="hi">Hindi</option>
-          <option value="kn">Kannada</option>
-          <option value="ta">Tamil</option>
-          <option value="te">Telugu</option>
-          <option value="ml">Malayalam</option>
-          <option value="bn">Bengali</option>
-          <option value="mr">Marathi</option>
-        </select>
-      </div>
+      {/* Updated Language Bar */}
+      <select
+        value={language}
+        onChange={(e) => setLanguage(e.target.value)}
+        className="w-full mt-4 p-3.5 rounded-xl border border-gray-300 dark:border-gray-600
+                   focus:border-purple-500 focus:ring-2 focus:ring-purple-300 
+                   dark:focus:ring-purple-700 transition-all duration-300
+                   bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900
+                   text-gray-900 dark:text-white appearance-none cursor-pointer
+                   hover:border-purple-400 dark:hover:border-purple-500"
+      >
+        <option value="en" className="dark:bg-gray-800">English</option>
+        <option value="hi" className="dark:bg-gray-800">Hindi</option>
+        <option value="kn" className="dark:bg-gray-800">Kannada</option>
+        <option value="ta" className="dark:bg-gray-800">Tamil</option>
+        <option value="te" className="dark:bg-gray-800">Telugu</option>
+        <option value="ml" className="dark:bg-gray-800">Malayalam</option>
+        <option value="bn" className="dark:bg-gray-800">Bengali</option>
+        <option value="mr" className="dark:bg-gray-800">Marathi</option>
+      </select>
 
-      {progressStep && (
-        <div className="mt-8 p-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl flex items-center justify-center gap-4 text-blue-700 dark:text-blue-300">
-          <Loader2 className="animate-spin w-5 h-5" />
-          <span className="font-medium">{progressStep}</span>
-        </div>
-      )}
-
-      {showSuggestion && (
-        <div className="mt-8 p-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl">
-          <h4 className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-2">
-             This is a large topic!
-          </h4>
-          <p className="text-sm text-amber-700 dark:text-amber-400 mt-2">
-            Should we create a quick Crash Course or a detailed Multipart Full Course?
-          </p>
-          <div className="flex gap-3 mt-4">
-            <button onClick={generateCrashCourse} className="px-4 py-2 bg-white dark:bg-gray-800 border border-amber-300 rounded-lg text-sm font-bold">Crash Course</button>
-            <button onClick={generateFullCourse} className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold">Full Course</button>
+      {isGenerating && (
+        <div className="mt-6 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-purple-200 dark:border-gray-700">
+          <div className="flex flex-col items-center justify-center">
+            <div className="relative mb-4">
+              <Loader2 className="w-12 h-12 text-purple-600 animate-spin" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-gray-800 dark:to-gray-900 rounded-full"></div>
+              </div>
+            </div>
+            <h4 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
+              Generating Your Video Lesson
+            </h4>
+            <p className="text-gray-600 dark:text-gray-300 text-center mb-4">
+              This may take 10-30 minutes. Please don't close this tab.
+            </p>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-2">
+              <div className="bg-gradient-to-r from-purple-500 to-indigo-500 h-2.5 rounded-full animate-pulse w-3/4"></div>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {progressStep}
+            </p>
           </div>
         </div>
       )}
 
-      {!progressStep && !showSuggestion && !videoUrl && (
+      {progressStep && !isGenerating && (
+        <div className="mt-6 flex items-center gap-2">
+          <Loader2 className="animate-spin" />
+          <span>{progressStep}</span>
+        </div>
+      )}
+{showSuggestion && (
+  <div className="mt-6 p-6 bg-gradient-to-r from-yellow-50 to-amber-50 
+                  dark:from-yellow-900/20 dark:to-amber-900/20 
+                  rounded-xl border-2 border-yellow-200 
+                  dark:border-yellow-800/50 shadow-lg">
+    <div className="flex items-start gap-3 mb-4">
+      <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+        <Sparkles className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+      </div>
+      <p className="font-bold text-gray-800 dark:text-yellow-100 text-lg">
+        This topic cannot be fully learned in the selected duration.
+        <span className="block text-sm font-normal text-gray-600 dark:text-yellow-200/80 mt-1">
+          Choose one of the options below:
+        </span>
+      </p>
+    </div>
+    
+    <div className="flex gap-4">
+      <button
+        onClick={generateCrashCourse}
+        className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 
+                   dark:border-gray-600 hover:border-purple-400 
+                   dark:hover:border-purple-500 bg-white dark:bg-gray-800
+                   text-gray-800 dark:text-white font-medium
+                   hover:bg-gray-50 dark:hover:bg-gray-700
+                   transition-all duration-300 shadow-md hover:shadow-lg
+                   flex items-center justify-center gap-2"
+      >
+        <span>Crash Course</span>
+        <ChevronRight className="w-4 h-4" />
+      </button>
+      <button
+        onClick={generateFullCourse}
+        className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 
+                   hover:from-amber-600 hover:to-yellow-700 text-white font-medium
+                   transition-all duration-300 shadow-lg hover:shadow-xl
+                   transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+      >
+        <span>Full Course (Part by Part)</span>
+        <Play className="w-4 h-4" />
+      </button>
+    </div>
+    
+    <p className="text-sm text-gray-600 dark:text-yellow-200/80 mt-4 text-center">
+      ⏳ Full Course may take longer but provides comprehensive learning
+    </p>
+  </div>
+)}
+
+      {!isGenerating && !progressStep && !showSuggestion && !videoUrl && (
         <button
           onClick={handleGenerate}
-          className="mt-8 w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2"
+          className="mt-6 w-full bg-gradient-to-r from-purple-600 to-indigo-600 
+                     hover:from-purple-700 hover:to-indigo-700 text-white p-4 rounded-xl
+                     font-semibold text-lg transition-all duration-300
+                     shadow-lg hover:shadow-xl transform hover:-translate-y-1"
         >
-          <Play className="w-5 h-5 fill-current" />
-          Generate AI Lesson
+          <Play className="inline mr-2" />
+          Generate Lesson
         </button>
       )}
 
       {videoUrl && (
-        <div className="mt-10 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-bold flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="w-5 h-5" />
-              Lesson Ready
-            </h4>
-            {isFullCourse && <span className="text-sm font-medium text-gray-500">Part {currentPart}</span>}
-          </div>
-          <div className="overflow-hidden rounded-2xl border-4 border-gray-100 dark:border-gray-700 shadow-2xl relative group">
-            <video
-              key={videoUrl}
-              src={videoUrl}
-              controls
-              autoPlay
-              className="w-full bg-black aspect-video"
-            />
-            {/* Download Overlay Button */}
-            <a 
-              href={videoUrl} 
-              download 
-              className="absolute top-4 right-4 p-2 bg-white/20 backdrop-blur-md rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"
-              title="Download Lesson"
+        <div className="mt-6">
+          <video
+            src={videoUrl}
+            controls
+            autoPlay
+            className="w-full rounded-xl shadow-lg"
+          />
+          {hasNextPart && (
+            <button
+              onClick={generateNextPart}
+              className="mt-4 w-full bg-black text-white p-3 rounded flex justify-center items-center gap-2"
             >
-              <Download className="w-5 h-5" />
-            </a>
-          </div>
-          
-          <button 
-             onClick={() => {setVideoUrl(null); setText("");}}
-             className="text-sm text-purple-600 font-semibold hover:underline"
-          >
-            Create another video
-          </button>
+              Next Part <ChevronRight />
+            </button>
+          )}
         </div>
-      )}
-
-      {hasNextPart && !progressStep && (
-        <button
-          onClick={generateNextPart}
-          className="mt-6 w-full py-4 bg-gray-900 dark:bg-white dark:text-black text-white rounded-xl flex items-center justify-center gap-2 font-bold hover:bg-gray-800 transition-all"
-        >
-          Watch Part {currentPart + 1}
-          <ChevronRight className="w-5 h-5" />
-        </button>
       )}
     </div>
   );

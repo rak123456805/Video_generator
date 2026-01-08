@@ -1,48 +1,64 @@
 import express from "express";
 import cors from "cors";
-
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 
 import videoRoutes from "./src/routes/videoRoutes.js";
 
-import dotenv from "dotenv";
 dotenv.config();
-
 
 const app = express();
 
-// ✅ Standard Middleware
-app.use(cors());
+/* ---------------- MIDDLEWARE ---------------- */
+
+app.use(
+  cors({
+    origin: "http://localhost:5173", // frontend
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-// ✅ Handle paths for ES Modules
+app.use((req, res, next) => {
+  console.log("➡️ Incoming:", req.method, req.url);
+  next();
+});
+
+/* ---------------- PATH SETUP ---------------- */
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ Auto-create 'generated' folder if it doesn't exist
+/* ---------------- GENERATED FOLDER ---------------- */
+
 const generatedPath = path.join(process.cwd(), "generated");
 if (!fs.existsSync(generatedPath)) {
-    fs.mkdirSync(generatedPath, { recursive: true });
-    console.log("📁 Created 'generated' folder for assets");
+  fs.mkdirSync(generatedPath, { recursive: true });
+  console.log("📁 Created 'generated' folder for assets");
 }
 
-/**
- * ✅ Serve generated videos & audio statically
- * Access via: http://localhost:5000/generated/your-video.mp4
- */
+/* ---------------- STATIC FILES ---------------- */
+
 app.use("/generated", express.static(generatedPath));
 
-// ✅ API Routes
+/* ---------------- API ROUTES ---------------- */
+
 app.use("/api/video", videoRoutes);
 
+/* ---------------- HEALTH CHECK ---------------- */
+
 app.get("/", (req, res) => {
-    res.send("Edu Video Backend running ✅");
+  res.send("Edu Video Backend running ✅");
 });
+
+/* ---------------- START SERVER ---------------- */
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-    console.log(`🚀 Server Running on port ${PORT}`);
-    console.log(`📂 Static files served from: ${generatedPath}`);
+  console.log(`🚀 Server Running on port ${PORT}`);
+  console.log(`📂 Static files served from: ${generatedPath}`);
 });
