@@ -5,19 +5,10 @@ import fs from "fs";
 import { analyzeTopicSize } from "../services/analysisService.js";
 import { generateAIScript } from "../services/scriptService.js";
 import { generateSpeech } from "../services/tts/index.js";
-import { scriptToSlides } from "../services/scriptToSlides.js";
 import { generateSlides } from "../services/slideService.js";
 import { generateVideoFromSlides } from "../services/slideVideoService.js";
 import { getAudioDuration } from "../services/audioService.js";
 import { mergeVideoAndAudio } from "../services/videoMergeService.js";
-
-/* ---------------- SLIDE COUNT LOCK ---------------- */
-
-const SLIDES_PER_DURATION = {
-  "15min": 18,
-  "30min": 36,
-  "1hr": 72,
-};
 
 /* ---------------- UTILS ---------------- */
 
@@ -47,40 +38,66 @@ const processVideoGeneration = async ({
   const silentVideo = `silent-${timestamp}.mp4`;
   const finalVideo = `${mode.toLowerCase()}-${safeTopic}-${language}-p${part}-final.mp4`;
 
-  const script = await generateAIScript({ topic, duration, mode, part, language });
+  console.log(`🎬 Starting video process: ${mode} - ${topic}`);
 
-  let slides = scriptToSlides(script);
-  if (!slides.length) throw new Error("No slides parsed");
+  /* -------- STEP 1: SCRIPT (Returns Array of Slides) -------- */
+  const scriptSlides = await generateAIScript({
+    topic,
+    duration,
+    mode,
+    part,
+    language,
+  });
 
-  const expectedSlides = SLIDES_PER_DURATION[duration];
-
-  if (slides.length > expectedSlides) {
-    slides = slides.slice(0, expectedSlides);
+  if (!scriptSlides || scriptSlides.length === 0) {
+    throw new Error("Script generation returned empty result");
   }
 
-  while (slides.length < expectedSlides) {
-    slides.push({ ...slides[slides.length - 1] });
-  }
-
-  const slidePaths = await generateSlides(slides, slideFolder, topic, language);
-
+  /* -------- STEP 2: SLIDES -------- */
+  // Pass the array directly. slideService > scriptToSlides handles the array.
+  const slidePaths = await generateSlides(scriptSlides, slideFolder, language);
   if (!slidePaths.length) throw new Error("Slide rendering failed");
 
-  const audioPath = await generateSpeech(script, audioFile, language);
-  if (!(await ensureFileExists(audioPath))) throw new Error("Audio failed");
+  /* -------- STEP 3: AUDIO -------- */
+  // Concatenate narration for TTS
+  const fullNarration = scriptSlides.map(s => s.narration).join("\n\n");
+
+  const audioPath = await generateSpeech(fullNarration, audioFile, language);
+  if (!(await ensureFileExists(audioPath))) {
+    throw new Error("Audio generation failed");
+  }
 
   const audioDuration = await getAudioDuration(audioPath);
-  const slideTime = Math.max(4, audioDuration / slidePaths.length);
 
+  /* -------- STEP 4: TIMING -------- */
+  // Use the wordCount from the script JSON
+  const totalWords = scriptSlides.reduce((sum, s) => sum + (s.wordCount || 0), 0);
+
+  let accumulatedDuration = 0;
+  const slideDurations = scriptSlides.map((s, i) => {
+    // Last slide takes remaining time to avoid cut-off
+    if (i === scriptSlides.length - 1) {
+      return Math.max(3, audioDuration - accumulatedDuration);
+    }
+
+    // Proportional timing
+    const ratio = (s.wordCount || 0) / (totalWords || 1);
+    const duration = Math.max(3, audioDuration * ratio); // Min 3 seconds per slide
+    accumulatedDuration += duration;
+    return duration;
+  });
+
+  /* -------- STEP 5: VIDEO -------- */
   const slideDirPath = path.join(process.cwd(), "generated", slideFolder);
+
   const silentVideoPath = await generateVideoFromSlides(
     slideDirPath,
     silentVideo,
-    slideTime
+    slideDurations
   );
 
   if (!(await ensureFileExists(silentVideoPath))) {
-    throw new Error("Silent video failed");
+    throw new Error("Silent video generation failed");
   }
 
   const finalOutputPath = path.join(process.cwd(), "generated", finalVideo);
@@ -98,16 +115,17 @@ const processVideoGeneration = async ({
 export const analyzeTopic = async (req, res) => {
   try {
     const { topic, duration } = req.body;
-    const analysis = analyzeTopicSize(topic, duration);
+    const analysis = await analyzeTopicSize(topic, duration);
     res.json({ success: true, analysis });
-  } catch {
-    res.status(500).json({ success: false });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 };
 
 export const generateCrashCourse = async (req, res) => {
   try {
     const { topic, duration, language = "en" } = req.body;
+
     const result = await processVideoGeneration({
       topic,
       duration,
@@ -115,8 +133,10 @@ export const generateCrashCourse = async (req, res) => {
       part: 1,
       language,
     });
+
     res.json({ success: true, mode: "CRASH", ...result });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -124,7 +144,11 @@ export const generateCrashCourse = async (req, res) => {
 export const generateFullCoursePart = async (req, res) => {
   try {
     const { topic, duration, part = 1, language = "en" } = req.body;
-    const analysis = analyzeTopicSize(topic, duration);
+
+    // Re-check analysis to confirm total parts (optional, but good for returning metadata)
+    // We assume the frontend/user handles the flow, but we return 'hasNextPart' metadata
+    const analysis = await analyzeTopicSize(topic, duration);
+    const totalParts = analysis.estimatedParts || 1;
 
     const result = await processVideoGeneration({
       topic,
@@ -139,10 +163,11 @@ export const generateFullCoursePart = async (req, res) => {
       mode: "FULL",
       ...result,
       currentPart: Number(part),
-      totalParts: analysis.estimatedParts,
-      hasNextPart: Number(part) < analysis.estimatedParts,
+      totalParts: totalParts,
+      hasNextPart: Number(part) < totalParts,
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

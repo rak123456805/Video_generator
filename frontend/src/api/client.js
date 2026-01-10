@@ -5,6 +5,7 @@ const apiClient = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  timeout: 0, // IMPORTANT: long video generation
 });
 
 export default apiClient;

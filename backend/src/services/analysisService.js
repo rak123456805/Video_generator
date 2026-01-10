@@ -1,69 +1,44 @@
-const estimateComplexity = (topic) => {
-  const t = topic.toLowerCase();
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import dotenv from "dotenv";
 
-  // Very simple / narrow topics
-  if (
-    t.includes("basics") ||
-    t.includes("introduction") ||
-    t.includes("overview") ||
-    t.includes("syntax")
-  ) return 1;
+dotenv.config();
 
-  // Medium complexity
-  if (
-    t.includes("css") ||
-    t.includes("html") ||
-    t.includes("javascript") ||
-    t.includes("box model") ||
-    t.includes("flexbox")
-  ) return 3;
+const API_KEY = process.env.GOOGLE_API_KEY;
+const genAI = new GoogleGenerativeAI(API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-  // High complexity frontend frameworks
-  if (
-    t.includes("react") ||
-    t.includes("angular") ||
-    t.includes("vue")
-  ) return 6;
+export const analyzeTopicSize = async (topic, duration) => {
+  try {
+    const prompt = `
+      Analyze if the topic "${topic}" can be effectively taught in a video of duration "${duration}".
+      
+      If it is too complex for the duration, suggest splitting it into parts.
+      
+      Return ONLY a JSON object with this structure:
+      {
+        "feasible": boolean,
+        "reason": "string explanation",
+        "complexity": number (1-10),
+        "estimatedParts": number (1 if feasible, >1 if it needs to be a full course)
+      }
+    `;
 
-  // Very high complexity topics
-  if (
-    t.includes("machine learning") ||
-    t.includes("deep learning") ||
-    t.includes("artificial intelligence") ||
-    t.includes("blockchain")
-  ) return 9;
-
-  // Default
-  return 5;
-};
-
-/**
- * Duration capacity (how much complexity can fit)
- */
-const DURATION_CAPACITY = {
-  "15min": 2,
-  "30min": 4,
-  "1hr": 6,
-};
-
-/**
- * Analyze topic size vs duration
- */
-export const analyzeTopicSize = (topic, duration) => {
-  const complexity = estimateComplexity(topic);
-  const capacity = DURATION_CAPACITY[duration] || 2;
-
-  const feasible = complexity <= capacity;
-
-  // Estimate number of parts if FULL course is needed
-  const estimatedParts = feasible
-    ? 1
-    : Math.ceil(complexity / capacity);
-
-  return {
-    feasible,
-    estimatedParts,
-    complexity,
-    capacity,
-  };
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+    
+    // Clean up markdown code blocks if present
+    const jsonStr = text.replace(/```json|```/g, "").trim();
+    
+    return JSON.parse(jsonStr);
+  } catch (error) {
+    console.error("Analysis Error:", error);
+    // Fallback if API fails
+    return {
+      feasible: true, // Default to true to not block user
+      reason: "Analysis failed, defaulting to feasible.",
+      complexity: 5,
+      estimatedParts: 1
+    };
+  }
 };

@@ -2,30 +2,34 @@
 
 import { exec } from "child_process";
 import ffprobePath from "ffprobe-static";
-import path from "path";
 
 export const getAudioDuration = (audioPath) => {
   return new Promise((resolve, reject) => {
+    if (!audioPath) {
+      return reject(new Error("audioPath is empty or undefined"));
+    }
+
     const cmd = `"${ffprobePath.path}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${audioPath}"`;
 
-    const process = exec(cmd, { timeout: 15000 }, (err, stdout) => {
+    exec(cmd, { timeout: 15000 }, (err, stdout, stderr) => {
       if (err) {
-        reject(new Error("ffprobe failed to read audio duration"));
-        return;
+        return reject(
+          new Error("ffprobe failed: " + (stderr || err.message))
+        );
       }
 
-      const duration = parseFloat(stdout);
-      if (isNaN(duration) || duration <= 0) {
-        reject(new Error("Invalid audio duration"));
-        return;
+      const raw = stdout?.trim();
+      const duration = Number(raw);
+
+      console.log("🎧 ffprobe raw duration:", raw);
+
+      if (!Number.isFinite(duration) || duration <= 0) {
+        return reject(
+          new Error(`Invalid audio duration from ffprobe: "${raw}"`)
+        );
       }
 
       resolve(duration);
     });
-
-    // 🔐 HARD SAFETY: kill stuck process
-    setTimeout(() => {
-      process.kill();
-    }, 16000);
   });
 };

@@ -1,93 +1,158 @@
 /* src/services/slideService.js */
 
 import puppeteer from "puppeteer";
-import fs from "fs";
 import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import { scriptToSlides } from "./scriptToSlides.js";
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * MAIN SLIDE GENERATOR
+ */
 export const generateSlides = async (
-  slides,
-  outputFolder,
-  topic,
+  script,
+  slideFolder,
   language = "en"
 ) => {
-  if (!Array.isArray(slides) || slides.length === 0) {
-    throw new Error("No slides provided to generateSlides()");
+  /* --------------------------------------------------
+     1️⃣ Output directory
+  -------------------------------------------------- */
+  const outputDir = path.join(
+    process.cwd(),
+    "generated",
+    slideFolder
+  );
+
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  const outputDir = path.join(process.cwd(), "generated", outputFolder);
-  fs.mkdirSync(outputDir, { recursive: true });
+  /* --------------------------------------------------
+     2️⃣ Script → slide data
+  -------------------------------------------------- */
+  const slideData = scriptToSlides(script, {
+    minBullets: 2,
+    maxBullets: 4,
+    wordsPerBullet: language === "en" ? 16 : 14,
+    maxSlides: 72,
+  });
 
-  let browser;
+  console.log(
+    `🚀 Generating ${slideData.length} slides for language: ${language}`
+  );
 
-  try {
-    browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+  if (!slideData.length) return [];
 
-    const slidePaths = [];
+  /* --------------------------------------------------
+     3️⃣ Puppeteer setup
+  -------------------------------------------------- */
+  const browser = await puppeteer.launch({
+    headless: "new",
+  });
 
-    for (let i = 0; i < slides.length; i++) {
-      const page = await browser.newPage();
-      await page.setViewport({ width: 1280, height: 720 });
-      page.setDefaultNavigationTimeout(0);
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 720 });
 
-      const slide = slides[i];
-      const title = slide.title || `Slide ${i + 1}`;
-      const bullets = Array.isArray(slide.bullets) ? slide.bullets : [];
+  /* --------------------------------------------------
+     4️⃣ Load HTML template
+  -------------------------------------------------- */
+  const templatePath = path.join(
+    __dirname,
+    "slideTemplate.html"
+  );
 
-      const html = `
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8" />
-<style>
-@font-face { font-family: KannadaFont; src: url("file://${process.cwd()}/fonts/NotoSansKannada-Bold.ttf"); }
-@font-face { font-family: TamilFont; src: url("file://${process.cwd()}/fonts/NotoSansTamil-Bold.ttf"); }
-@font-face { font-family: TeluguFont; src: url("file://${process.cwd()}/fonts/NotoSansTelugu-Bold.ttf"); }
-@font-face { font-family: DevanagariFont; src: url("file://${process.cwd()}/fonts/NotoSansDevanagari-Bold.ttf"); }
-@font-face { font-family: MalayalamFont; src: url("file://${process.cwd()}/fonts/NotoSansMalayalam-Bold.ttf"); }
-@font-face { font-family: BengaliFont; src: url("file://${process.cwd()}/fonts/NotoSansBengali-Bold.ttf"); }
-@font-face { font-family: NotoSans; src: url("file://${process.cwd()}/fonts/NotoSans-Regular.ttf"); }
+  if (!fs.existsSync(templatePath)) {
+    throw new Error("slideTemplate.html not found");
+  }
 
-body {
-  margin: 0;
-  width: 1280px;
-  height: 720px;
-  background: #0f172a;
-  color: #f8fafc;
-  font-family: NotoSans, KannadaFont, TamilFont, TeluguFont,
-               DevanagariFont, MalayalamFont, BengaliFont, sans-serif;
+  const htmlTemplate = fs.readFileSync(
+    templatePath,
+    "utf8"
+  );
+
+  const generatedImages = [];
+
+  /* --------------------------------------------------
+     5️⃣ Render slides
+  -------------------------------------------------- */
+  for (let i = 0; i < slideData.length; i++) {
+    const slide = slideData[i];
+
+    const bulletHtml = slide.bullets
+      .map(
+        b => `<div class="bullet">• ${b}</div>`
+      )
+      .join("");
+
+    const finalHtml = htmlTemplate.replace(
+      '<div class="slide" id="slide">',
+      `<div class="slide" id="slide"
+        style="
+          font-family:${getFontFamily(language)};
+          transform: scale(${getFontScale(language)});
+          transform-origin: top left;
+        ">
+        <div class="title">${slide.title}</div>
+        <div class="bullets">${bulletHtml}</div>`
+    );
+
+    await page.setContent(finalHtml);
+    await page.evaluateHandle("document.fonts.ready");
+
+    const fileName = `slide_${i + 1}.png`;
+    const filePath = path.join(outputDir, fileName);
+
+    await page.screenshot({ path: filePath });
+
+    console.log(`✅ Saved: ${fileName}`);
+    generatedImages.push(filePath);
+  }
+
+  /* --------------------------------------------------
+     6️⃣ Cleanup
+  -------------------------------------------------- */
+  await browser.close();
+
+  return generatedImages;
+};
+
+/* ==================================================
+   FONT FAMILY PER LANGUAGE
+================================================== */
+
+function getFontFamily(lang) {
+  const fonts = {
+    hi: "DevanagariFont",
+    mr: "DevanagariFont",
+    kn: "KannadaFont",
+    ta: "TamilFont",
+    te: "TeluguFont",
+    ml: "MalayalamFont",
+    bn: "BengaliFont",
+    en: "sans-serif",
+  };
+
+  return fonts[lang] || "sans-serif";
 }
 
-.container { padding: 60px; }
-h1 { font-size: 48px; color: #38bdf8; margin-bottom: 30px; }
-li { font-size: 28px; margin-bottom: 18px; line-height: 1.4; }
-</style>
-</head>
-<body>
-  <div class="container">
-    <h1>${title}</h1>
-    <ul>
-      ${bullets.map(b => `<li>${b}</li>`).join("")}
-    </ul>
-  </div>
-</body>
-</html>
-`;
+/* ==================================================
+   FONT SCALE PER LANGUAGE
+   (Improves readability for Indian scripts)
+================================================== */
 
-      await page.setContent(html, { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(300);
+function getFontScale(lang) {
+  const scale = {
+    hi: 1.15,
+    mr: 1.15,
+    kn: 1.18,
+    ta: 1.15,
+    te: 1.15,
+    ml: 1.2,
+    bn: 1.15,
+    en: 1.0,
+  };
 
-      const slidePath = path.join(outputDir, `slide-${i + 1}.png`);
-      await page.screenshot({ path: slidePath });
-
-      slidePaths.push(slidePath);
-      await page.close();
-    }
-
-    return slidePaths;
-  } finally {
-    if (browser) await browser.close();
-  }
-};
+  return scale[lang] || 1.0;
+}
