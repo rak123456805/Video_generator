@@ -22,9 +22,9 @@ const model = genAI.getGenerativeModel({
 /* ---------------- WORD TARGETS ---------------- */
 
 const MIN_WORDS = {
-  "15min": 1500,
-  "30min": 3000,
-  "1hr": 6000,
+  "15min": 2250,  // 150 words/min * 15 min
+  "30min": 4500,  // 150 words/min * 30 min
+  "1hr": 9000,    // 150 words/min * 60 min
 };
 
 /* ---------------- PROMPT BUILDER ---------------- */
@@ -35,26 +35,57 @@ const buildPrompt = ({ topic, duration, mode, part, language }) => {
   return `
     You are an expert educational content creator.
     Create a video script for the topic: "${topic}".
-    Duration Target: ${duration} (approx ${minWords} words).
+    Duration Target: ${duration} - MUST GENERATE AT LEAST ${minWords} WORDS OF NARRATION.
     Mode: ${mode} (${mode === 'FULL' ? 'Part ' + part : 'Crash Course'}).
     Language: ${language} (Ensure script is in this language).
 
     Return ONLY a JSON array where each object represents a slide/scene:
     [
       {
-        "title": "Short Slide Title",
-        "bullets": ["Point 1", "Point 2"],
-        "narration": "The spoken explanation for this slide...",
-        "imagePrompt": "A detailed description of an image to visualize this concept"
+        "title": "Introduction to Python",
+        "bullets": [
+          "High-level programming language",
+          "Easy to read and write",
+          "Versatile for many applications"
+        ],
+        "narration": "Welcome to our introduction to Python. Python is a high-level programming language, which means it abstracts away complex details, making it easier for developers to focus on solving problems. It's known for being easy to read and write, with syntax that resembles natural English. This makes it perfect for beginners. Python is also incredibly versatile - you can use it for web development, data science, automation, artificial intelligence, and much more. Major companies and organizations rely on Python for their critical systems.",
+        "imagePrompt": "A Python logo with code snippets in the background",
+        "examples": [
+          "Instagram uses Python's Django framework",
+          "Netflix uses Python for data analysis",
+          "NASA uses Python for scientific computing"
+        ]
       }
     ]
+    
+    IMPORTANT: Notice how the narration explains each bullet point in detail but does NOT read the examples word-for-word. The narration mentions "major companies" but lets viewers read the specific examples on screen. This is MANDATORY.
 
     Requirements:
+    - **CRITICAL SYNCHRONIZATION RULE**: The \"narration\" MUST explain and elaborate on the \"bullets\" shown on the slide.
+      * Narration is the spoken audio that plays while the slide is visible.
+      * Start by introducing the slide topic, then explain each bullet point in detail.
+      * The viewer should hear explanations of what they see on screen.
+      * Example: If bullet says "Python is easy to learn", narration should explain WHY and HOW it's easy to learn.
+    - \"bullets\" should be SHORT, concise points (5-10 words each) that appear on screen.
+    - \"narration\" should be DETAILED explanations (50-150 words per slide) that elaborate on the bullets.
     - The narration should be engaging, spoken-style, and educational.
     - Break content into logical slides.
     - "imagePrompt" should be in English, describing a visual aid (diagram, photo, or illustration).
-    - Ensure the total word count of "narration" across all slides meets the target (~${minWords} words).
+    - **EXAMPLES ARE VISUAL-ONLY**: The \"examples\" field contains text that appears on the slide but should NOT be read word-for-word in the narration.
+      * Examples are displayed in a separate box on the slide for viewers to read.
+      * In the narration, you can MENTION that there are examples (e.g., "For instance, companies like Instagram and Netflix use Python extensively")
+      * But DO NOT read the exact example text verbatim (e.g., DON'T say "Instagram uses Python's Django framework, Netflix uses Python for data analysis")
+      * Keep the narration focused on explaining the bullets, and let viewers read the examples themselves.
+    - \"examples\" should contain 1-3 REAL-WORLD, PRACTICAL examples that illustrate the concept.
+      * Examples should be concrete and relatable (e.g., \"Netflix uses React for its UI\" or \"Gmail's inbox is a real-world queue\")
+      * Make examples diverse and interesting
+      * Examples should help learners understand how the concept applies in practice
+    - **CRITICAL**: The total word count of \"narration\" across all slides MUST be AT LEAST ${minWords} WORDS.
+      * This is MANDATORY to fill the entire ${duration} duration.
+      * Each slide's narration should be detailed and comprehensive, not brief summaries.
+      * Add thorough explanations, context, and elaboration to reach the word count target.
     - For "Full Course", cover deep details. For "Crash Course", summarize key concepts.
+    - Include examples for at least 70% of slides to make content engaging and practical.
   `;
 };
 
@@ -95,6 +126,17 @@ export const generateAIScript = async ({
       ...slide,
       wordCount: slide.narration.split(/\s+/).length
     }));
+
+    // Validate total word count
+    const totalWords = scriptData.reduce((sum, slide) => sum + slide.wordCount, 0);
+    const minWords = MIN_WORDS[duration] || 1500;
+
+    console.log(`📊 Generated ${totalWords} words (target: ${minWords} words)`);
+
+    if (totalWords < minWords * 0.7) {
+      console.warn(`⚠️ WARNING: Generated content (${totalWords} words) is significantly less than target (${minWords} words)`);
+      console.warn(`⚠️ This may result in shorter video duration than requested.`);
+    }
 
     return scriptData;
   } catch (err) {

@@ -8,7 +8,8 @@ export const scriptToSlides = (scriptData, options = {}) => {
       bullets: slide.bullets || [],
       wordCount: slide.wordCount || 0,
       narration: slide.narration || "", // Keep narration for TTS
-      imagePrompt: slide.imagePrompt || ""
+      imagePrompt: slide.imagePrompt || "",
+      examples: slide.examples || [] // Add examples support
     }));
   }
 

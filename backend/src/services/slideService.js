@@ -82,9 +82,22 @@ export const generateSlides = async (
 
     const bulletHtml = slide.bullets
       .map(
-        b => `<div class="bullet">• ${b}</div>`
+        b => `<div class="bullet">${b}</div>`
       )
       .join("");
+
+    // Generate examples HTML if examples exist
+    let examplesHtml = "";
+    if (slide.examples && slide.examples.length > 0) {
+      const exampleItems = slide.examples
+        .map(ex => `<div class="example-item">${ex}</div>`)
+        .join("");
+      examplesHtml = `
+        <div class="examples-section">
+          <div class="examples-title">Examples</div>
+          ${exampleItems}
+        </div>`;
+    }
 
     const finalHtml = htmlTemplate.replace(
       '<div class="slide" id="slide">',
@@ -95,7 +108,8 @@ export const generateSlides = async (
           transform-origin: top left;
         ">
         <div class="title">${slide.title}</div>
-        <div class="bullets">${bulletHtml}</div>`
+        <div class="bullets">${bulletHtml}</div>
+        ${examplesHtml}`
     );
 
     await page.setContent(finalHtml);
