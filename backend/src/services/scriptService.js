@@ -76,7 +76,9 @@ const buildPrompt = ({ topic, duration, mode, part, language }) => {
       * In the narration, you can MENTION that there are examples (e.g., "For instance, companies like Instagram and Netflix use Python extensively")
       * But DO NOT read the exact example text verbatim (e.g., DON'T say "Instagram uses Python's Django framework, Netflix uses Python for data analysis")
       * Keep the narration focused on explaining the bullets, and let viewers read the examples themselves.
-    - \"examples\" should contain 1-3 REAL-WORLD, PRACTICAL examples that illustrate the concept.
+    - \"examples\" should contain 1-2 REAL-WORLD, PRACTICAL examples that illustrate the concept.
+      * **MAXIMUM 2 examples per slide** to prevent overflow
+      * Examples should be CONCISE (under 60 characters each)
       * Examples should be concrete and relatable (e.g., \"Netflix uses React for its UI\" or \"Gmail's inbox is a real-world queue\")
       * Make examples diverse and interesting
       * Examples should help learners understand how the concept applies in practice
@@ -107,14 +109,39 @@ export const generateAIScript = async ({
     const response = await result.response;
     const text = response.text();
 
-    // Parse JSON
+    // Parse JSON with robust cleanup
     let scriptData = [];
     try {
       scriptData = JSON.parse(text);
     } catch (parseErr) {
       console.error("JSON Parsing failed, attempting cleanup...");
-      const jsonStr = text.replace(/```json|```/g, "").trim();
-      scriptData = JSON.parse(jsonStr);
+
+      // Try multiple cleanup strategies
+      let cleanedText = text;
+
+      // 1. Remove markdown code blocks
+      cleanedText = cleanedText.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+
+      // 2. Remove trailing commas before closing brackets
+      cleanedText = cleanedText.replace(/,(\s*[}\]])/g, "$1");
+
+      // 3. Fix common quote issues
+      cleanedText = cleanedText.replace(/'/g, '"');
+
+      // 4. Remove any text before first [ and after last ]
+      const firstBracket = cleanedText.indexOf('[');
+      const lastBracket = cleanedText.lastIndexOf(']');
+      if (firstBracket !== -1 && lastBracket !== -1) {
+        cleanedText = cleanedText.substring(firstBracket, lastBracket + 1);
+      }
+
+      try {
+        scriptData = JSON.parse(cleanedText);
+      } catch (secondErr) {
+        console.error("❌ JSON cleanup failed. Raw response:");
+        console.error(text.substring(0, 500) + "...");
+        throw new Error("Failed to parse Gemini response as JSON. The AI may have generated invalid JSON format.");
+      }
     }
 
     if (!Array.isArray(scriptData)) {

@@ -9,7 +9,11 @@ import {
 } from "lucide-react";
 import apiClient from "../../api/client";
 
-export function GenerateVideoSection() {
+interface GenerateVideoSectionProps {
+  onScriptGenerated?: (topic: string, language: string, scriptSlides: any[]) => void;
+}
+
+export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSectionProps = {}) {
   const [text, setText] = useState("");
   const [duration, setDuration] = useState("15");
   const [language, setLanguage] = useState("en");
@@ -79,6 +83,11 @@ export function GenerateVideoSection() {
       setVideoUrl(buildVideoUrl(res.data.finalVideo));
       setProgressStep(null);
       setIsGenerating(false);
+
+      // Notify parent component about the generated script if callback exists
+      if (onScriptGenerated && res.data.scriptSlides) {
+        onScriptGenerated(text, language, res.data.scriptSlides);
+      }
     } catch (err) {
       console.error(err);
       setProgressStep("Crash Course generation failed.");
@@ -105,6 +114,11 @@ export function GenerateVideoSection() {
       setHasNextPart(res.data.hasNextPart);
       setProgressStep(null);
       setIsGenerating(false);
+
+      // Notify parent component about the generated script if callback exists
+      if (onScriptGenerated && res.data.scriptSlides) {
+        onScriptGenerated(text, language, res.data.scriptSlides);
+      }
     } catch (err) {
       console.error(err);
       setProgressStep("Full Course generation failed.");
@@ -160,11 +174,10 @@ export function GenerateVideoSection() {
           <button
             key={d}
             onClick={() => setDuration(d)}
-            className={`p-3 rounded-xl transition-all duration-300 ${
-              duration === d 
-                ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg" 
+            className={`p-3 rounded-xl transition-all duration-300 ${duration === d
+                ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg"
                 : "border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-            }`}
+              }`}
           >
             {d === "1" ? "1 Hour" : `${d} Minutes`}
           </button>
@@ -223,54 +236,54 @@ export function GenerateVideoSection() {
           <span>{progressStep}</span>
         </div>
       )}
-{showSuggestion && (
-  <div className="mt-6 p-6 bg-gradient-to-r from-yellow-50 to-amber-50 
+      {showSuggestion && (
+        <div className="mt-6 p-6 bg-gradient-to-r from-yellow-50 to-amber-50 
                   dark:from-yellow-900/20 dark:to-amber-900/20 
                   rounded-xl border-2 border-yellow-200 
                   dark:border-yellow-800/50 shadow-lg">
-    <div className="flex items-start gap-3 mb-4">
-      <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-        <Sparkles className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-      </div>
-      <p className="font-bold text-gray-800 dark:text-yellow-100 text-lg">
-        This topic cannot be fully learned in the selected duration.
-        <span className="block text-sm font-normal text-gray-600 dark:text-yellow-200/80 mt-1">
-          Choose one of the options below:
-        </span>
-      </p>
-    </div>
-    
-    <div className="flex gap-4">
-      <button
-        onClick={generateCrashCourse}
-        className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+              <Sparkles className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <p className="font-bold text-gray-800 dark:text-yellow-100 text-lg">
+              This topic cannot be fully learned in the selected duration.
+              <span className="block text-sm font-normal text-gray-600 dark:text-yellow-200/80 mt-1">
+                Choose one of the options below:
+              </span>
+            </p>
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              onClick={generateCrashCourse}
+              className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 
                    dark:border-gray-600 hover:border-purple-400 
                    dark:hover:border-purple-500 bg-white dark:bg-gray-800
                    text-gray-800 dark:text-white font-medium
                    hover:bg-gray-50 dark:hover:bg-gray-700
                    transition-all duration-300 shadow-md hover:shadow-lg
                    flex items-center justify-center gap-2"
-      >
-        <span>Crash Course</span>
-        <ChevronRight className="w-4 h-4" />
-      </button>
-      <button
-        onClick={generateFullCourse}
-        className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 
+            >
+              <span>Crash Course</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+            <button
+              onClick={generateFullCourse}
+              className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-600 
                    hover:from-amber-600 hover:to-yellow-700 text-white font-medium
                    transition-all duration-300 shadow-lg hover:shadow-xl
                    transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
-      >
-        <span>Full Course (Part by Part)</span>
-        <Play className="w-4 h-4" />
-      </button>
-    </div>
-    
-    <p className="text-sm text-gray-600 dark:text-yellow-200/80 mt-4 text-center">
-      ⏳ Full Course may take longer but provides comprehensive learning
-    </p>
-  </div>
-)}
+            >
+              <span>Full Course (Part by Part)</span>
+              <Play className="w-4 h-4" />
+            </button>
+          </div>
+
+          <p className="text-sm text-gray-600 dark:text-yellow-200/80 mt-4 text-center">
+            ⏳ Full Course may take longer but provides comprehensive learning
+          </p>
+        </div>
+      )}
 
       {!isGenerating && !progressStep && !showSuggestion && !videoUrl && (
         <button

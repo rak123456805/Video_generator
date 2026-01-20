@@ -6,6 +6,7 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 
 import videoRoutes from "./src/routes/videoRoutes.js";
+import quizRoutes from "./src/routes/quizRoutes.js";
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ app.use("/generated", express.static(generatedPath));
 /* ---------------- API ROUTES ---------------- */
 
 app.use("/api/video", videoRoutes);
+app.use("/api/quiz", quizRoutes);
 
 /* ---------------- HEALTH CHECK ---------------- */
 

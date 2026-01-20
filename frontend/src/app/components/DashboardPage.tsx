@@ -5,6 +5,7 @@ import { GenerateVideoSection } from './GenerateVideoSection';
 import { VideoGenerationStatus } from './VideoGenerationStatus';
 import { RecentVideos } from './RecentVideos';
 import { AnalyticsSection } from './AnalyticsSection';
+import { QuizSection } from './QuizSection';
 import { Video, TrendingUp, Clock, Calendar } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -14,6 +15,9 @@ interface DashboardPageProps {
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [currentTopic, setCurrentTopic] = useState('');
+  const [currentLanguage, setCurrentLanguage] = useState('en');
+  const [scriptSlides, setScriptSlides] = useState<any[]>([]);
 
   const stats = [
     {
@@ -46,13 +50,19 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     },
   ];
 
+  const handleScriptGenerated = (topic: string, language: string, slides: any[]) => {
+    setCurrentTopic(topic);
+    setCurrentLanguage(language);
+    setScriptSlides(slides);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <DashboardNavbar onNavigate={onNavigate} />
-      
+
       <div className="flex">
         <DashboardSidebar activeTab={activeTab} onTabChange={setActiveTab} />
-        
+
         <main className="flex-1 p-8">
           {activeTab === 'dashboard' && (
             <div className="space-y-8">
@@ -80,11 +90,10 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                           <Icon className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                         </div>
                         <span
-                          className={`text-sm ${
-                            stat.positive
-                              ? 'text-green-600 dark:text-green-400'
-                              : 'text-red-600 dark:text-red-400'
-                          }`}
+                          className={`text-sm ${stat.positive
+                            ? 'text-green-600 dark:text-green-400'
+                            : 'text-red-600 dark:text-red-400'
+                            }`}
                         >
                           {stat.change}
                         </span>
@@ -101,15 +110,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
               </div>
 
               {/* Video Generator */}
-              <GenerateVideoSection
-                isGenerating={isGenerating}
-                onGenerate={() => setIsGenerating(true)}
-              />
+              <GenerateVideoSection onScriptGenerated={handleScriptGenerated} />
 
-              {/* Generation Status */}
-              {isGenerating && (
-                <VideoGenerationStatus onComplete={() => setIsGenerating(false)} />
-              )}
+
 
               {/* Recent Videos */}
               <RecentVideos />
@@ -126,13 +129,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                   Create a new AI-powered video course
                 </p>
               </div>
-              <GenerateVideoSection
-                isGenerating={isGenerating}
-                onGenerate={() => setIsGenerating(true)}
-              />
-              {isGenerating && (
-                <VideoGenerationStatus onComplete={() => setIsGenerating(false)} />
-              )}
+              <GenerateVideoSection onScriptGenerated={handleScriptGenerated} />
             </div>
           )}
 
@@ -161,6 +158,24 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </p>
               </div>
               <AnalyticsSection />
+            </div>
+          )}
+
+          {activeTab === 'quiz' && (
+            <div className="space-y-8">
+              <div>
+                <h2 className="text-3xl mb-2 text-gray-900 dark:text-white">
+                  Quiz
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400">
+                  Test your knowledge with AI-generated quizzes
+                </p>
+              </div>
+              <QuizSection
+                topic={currentTopic}
+                scriptSlides={scriptSlides}
+                language={currentLanguage}
+              />
             </div>
           )}
 

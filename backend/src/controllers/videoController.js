@@ -107,6 +107,7 @@ const processVideoGeneration = async ({
     finalVideo: `/generated/${finalVideo}`,
     part,
     duration,
+    scriptSlides, // Return script slides for quiz generation
   };
 };
 

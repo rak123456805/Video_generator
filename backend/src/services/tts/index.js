@@ -1,114 +1,89 @@
-/* src/services/tts/index.js */
+/* src/services/tts/index.js - Edge TTS using Python module */
 
+import { exec } from "child_process";
+import { promisify } from "util";
 import fs from "fs";
 import path from "path";
-import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 
-/**
- * Voice mapping (India-focused, extendable)
- */
+const execAsync = promisify(exec);
+
 const VOICES = {
-  en: "en-IN-NeerjaNeural",
-  hi: "hi-IN-SwaraNeural",
-  kn: "kn-IN-GaganNeural",
-  ta: "ta-IN-PallaviNeural",
-  te: "te-IN-ShrutiNeural",
-  ml: "ml-IN-SobhanaNeural",
-  bn: "bn-IN-TanishaaNeural",
-  mr: "mr-IN-AarohiNeural",
+    en: "en-IN-NeerjaNeural",
+    hi: "hi-IN-SwaraNeural",
+    kn: "kn-IN-GaganNeural",
+    ta: "ta-IN-PallaviNeural",
+    te: "te-IN-ShrutiNeural",
+    ml: "ml-IN-SobhanaNeural",
+    bn: "bn-IN-TanishaaNeural",
+    mr: "mr-IN-AarohiNeural",
 };
 
-/**
- * 🔐 Safe sentence-based chunking
- * Required for long audio (15–60 min)
- */
-const splitText = (text, maxLength = 4000) => {
-  const chunks = [];
-  let current = "";
-
-  // Supports Indian punctuation as well
-  const sentences = text.split(/(?<=[.!?।])\s+/);
-
-  for (const sentence of sentences) {
-    if ((current + sentence).length > maxLength) {
-      chunks.push(current.trim());
-      current = sentence;
-    } else {
-      current += " " + sentence;
-    }
-  }
-
-  if (current.trim()) chunks.push(current.trim());
-  return chunks;
-};
-
-/**
- * 🎙 Generate speech using Microsoft Edge TTS
- */
 export const generateSpeech = async (text, outputFile, language = "en") => {
-  const outputDir = path.join(process.cwd(), "generated");
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
+    const outputDir = path.join(process.cwd(), "generated");
+    if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+    }
 
-  const outputPath = path.join(outputDir, outputFile);
+    const outputPath = path.join(outputDir, outputFile);
+    if (fs.existsSync(outputPath)) {
+        fs.unlinkSync(outputPath);
+    }
 
-  // Remove old file if exists
-  if (fs.existsSync(outputPath)) {
-    fs.unlinkSync(outputPath);
-  }
+    const voice = VOICES[language] || VOICES.en;
+    console.log("🎙 Generating speech using Edge-TTS...");
+    console.log(`🌐 Language: ${language} (${voice})`);
 
-  console.log("🎙 Generating speech using Edge-TTS...");
+    const tempTextFile = path.join(outputDir, `temp_${Date.now()}.txt`);
+    fs.writeFileSync(tempTextFile, text, "utf-8");
 
-  const tts = new MsEdgeTTS();
+    try {
+        // Use python -m edge_tts instead of edge-tts command
+        const command = `python -m edge_tts --voice "${voice}" --file "${tempTextFile}" --write-media "${outputPath}"`;
 
-  await tts.setMetadata(
-    VOICES[language] || VOICES.en,
-    OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3
-  );
-
-  const writeStream = fs.createWriteStream(outputPath);
-
-  const chunks = splitText(text);
-  console.log(`🔊 Total Chunks: ${chunks.length}`);
-
-  try {
-    for (let i = 0; i < chunks.length; i++) {
-      console.log(`▶️ Generating chunk ${i + 1}/${chunks.length}`);
-
-      const result = await tts.toStream(chunks[i]);
-      const audioStream = result.audioStream;
-
-      // Write chunk fully before continuing
-      await new Promise((resolve, reject) => {
-        audioStream.on("data", (chunk) => {
-          writeStream.write(chunk);
+        console.log("🔊 Running Edge-TTS via Python...");
+        const { stdout, stderr } = await execAsync(command, {
+            maxBuffer: 50 * 1024 * 1024,
+            timeout: 300000 // 5 minute timeout for long audio
         });
 
-        audioStream.on("end", resolve);
-        audioStream.on("error", reject);
-      });
+        if (stderr && !stderr.includes("INFO") && !stderr.includes("edge_tts")) {
+            console.warn("⚠️ Edge-TTS warnings:", stderr);
+        }
+
+        // Clean up temp file
+        if (fs.existsSync(tempTextFile)) {
+            fs.unlinkSync(tempTextFile);
+        }
+
+        if (!fs.existsSync(outputPath)) {
+            throw new Error("Audio file was not created");
+        }
+
+        const size = fs.statSync(outputPath).size;
+        if (size < 1000) {
+            throw new Error("Generated audio file is too small");
+        }
+
+        console.log("✅ Audio generated successfully!");
+        console.log(`🎧 File size: ${(size / 1024).toFixed(2)} KB`);
+
+        return outputPath;
+
+    } catch (error) {
+        if (fs.existsSync(tempTextFile)) {
+            fs.unlinkSync(tempTextFile);
+        }
+
+        console.error("❌ Edge-TTS Error:", error.message);
+
+        if (error.message.includes("python") || error.message.includes("not recognized")) {
+            throw new Error("Python is not installed or not in PATH. Please install Python 3.7+ and edge-tts: pip install edge-tts");
+        }
+
+        if (error.message.includes("No module named")) {
+            throw new Error("edge-tts module not found. Please run: pip install edge-tts");
+        }
+
+        throw new Error(`Edge-TTS failed: ${error.message}`);
     }
-
-    // Finalize file
-    writeStream.end();
-
-    await new Promise((resolve) =>
-      writeStream.on("finish", resolve)
-    );
-
-    const size = fs.statSync(outputPath).size;
-    if (size < 1000) {
-      throw new Error("Edge-TTS produced empty audio file");
-    }
-
-    console.log("✅ Full audio generated successfully");
-    console.log("🎧 Audio size:", size, "bytes");
-
-    return outputPath;
-
-  } catch (error) {
-    writeStream.close();
-    throw error;
-  }
 };
