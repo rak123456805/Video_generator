@@ -1,11 +1,31 @@
-import { Play, Download, Share2, EllipsisVertical, Clock, Calendar } from 'lucide-react';
+import { useState } from 'react';
+import { Play, Download, Share2, EllipsisVertical, Clock, Calendar, X } from 'lucide-react';
+import { useVideo } from '../contexts/VideoContext';
 
 interface RecentVideosProps {
   showAll?: boolean;
 }
 
 export function RecentVideos({ showAll = false }: RecentVideosProps) {
-  const videos = [
+  const { recentVideos } = useVideo();
+
+  // Convert recent videos from context to display format
+  const generatedVideos = recentVideos.map((video, index) => ({
+    id: `generated-${index}`,
+    title: video.topic || 'Untitled Video',
+    duration: video.isFullCourse ? `Part ${video.currentPart}` : '15-60 min',
+    date: new Date(video.timestamp).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }),
+    thumbnail: video.videoUrl || '',
+    views: 'New',
+    videoUrl: video.videoUrl,
+    isGenerated: true,
+  }));
+
+  const mockVideos = [
     {
       id: 1,
       title: 'Introduction to Machine Learning',
@@ -13,6 +33,8 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
       date: 'Dec 20, 2024',
       thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=225&fit=crop',
       views: '1.2k',
+      isGenerated: false,
+      videoUrl: undefined,
     },
     {
       id: 2,
@@ -21,6 +43,8 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
       date: 'Dec 18, 2024',
       thumbnail: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=400&h=225&fit=crop',
       views: '856',
+      isGenerated: false,
+      videoUrl: undefined,
     },
     {
       id: 3,
@@ -29,34 +53,26 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
       date: 'Dec 15, 2024',
       thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=400&h=225&fit=crop',
       views: '2.3k',
-    },
-    {
-      id: 4,
-      title: 'Data Science with R',
-      duration: '30 min',
-      date: 'Dec 12, 2024',
-      thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=225&fit=crop',
-      views: '654',
-    },
-    {
-      id: 5,
-      title: 'React Best Practices',
-      duration: '1 hour',
-      date: 'Dec 10, 2024',
-      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400&h=225&fit=crop',
-      views: '1.8k',
-    },
-    {
-      id: 6,
-      title: 'Cloud Computing Basics',
-      duration: '30 min',
-      date: 'Dec 8, 2024',
-      thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=400&h=225&fit=crop',
-      views: '945',
+      isGenerated: false,
+      videoUrl: undefined,
     },
   ];
 
-  const displayedVideos = showAll ? videos : videos.slice(0, 3);
+  // Combine generated videos with mock videos, generated videos first
+  const allVideos = [...generatedVideos, ...mockVideos];
+  const displayedVideos = showAll ? allVideos : allVideos.slice(0, 3);
+
+
+  /* ---------------- VIDEO PLAYBACK STATE ---------------- */
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+
+  const handlePlayVideo = (videoUrl: string) => {
+    setSelectedVideo(videoUrl);
+  };
+
+  const handleCloseVideo = () => {
+    setSelectedVideo(null);
+  };
 
   return (
     <div>
@@ -79,13 +95,24 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
           >
             {/* Thumbnail */}
             <div className="relative aspect-video bg-gray-200 dark:bg-gray-700 overflow-hidden">
-              <img
-                src={video.thumbnail}
-                alt={video.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-              />
+              {video.isGenerated && video.videoUrl ? (
+                <video
+                  src={video.videoUrl}
+                  className="w-full h-full object-cover"
+                  preload="metadata"
+                />
+              ) : (
+                <img
+                  src={video.thumbnail}
+                  alt={video.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <button className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors">
+                <button
+                  onClick={() => video.isGenerated && video.videoUrl && handlePlayVideo(video.videoUrl)}
+                  className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition-colors"
+                >
                   <Play className="w-5 h-5 text-gray-900 ml-0.5" />
                 </button>
               </div>
@@ -93,6 +120,11 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
                 <Clock className="w-3 h-3" />
                 {video.duration}
               </div>
+              {video.isGenerated && (
+                <div className="absolute top-2 left-2 px-2 py-1 bg-purple-600 rounded text-xs text-white font-semibold">
+                  Generated
+                </div>
+              )}
             </div>
 
             {/* Content */}
@@ -111,7 +143,10 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
 
               {/* Actions */}
               <div className="flex items-center gap-2">
-                <button className="flex-1 py-2 px-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm">
+                <button
+                  onClick={() => video.isGenerated && video.videoUrl && handlePlayVideo(video.videoUrl)}
+                  className="flex-1 py-2 px-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 text-sm"
+                >
                   <Play className="w-4 h-4" />
                   Watch
                 </button>
@@ -129,6 +164,26 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
           </div>
         ))}
       </div>
+
+      {/* Video Player Modal */}
+      {selectedVideo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+          <div className="relative w-full max-w-5xl bg-black rounded-2xl overflow-hidden shadow-2xl">
+            <button
+              onClick={handleCloseVideo}
+              className="absolute top-4 right-4 z-10 p-2 bg-black/50 hover:bg-black/80 rounded-full text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <video
+              src={selectedVideo}
+              controls
+              autoPlay
+              className="w-full h-auto max-h-[80vh]"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

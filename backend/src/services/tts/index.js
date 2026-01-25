@@ -40,10 +40,10 @@ export const generateSpeech = async (text, outputFile, language = "en") => {
         // Use python -m edge_tts instead of edge-tts command
         const command = `python -m edge_tts --voice "${voice}" --file "${tempTextFile}" --write-media "${outputPath}"`;
 
-        console.log("🔊 Running Edge-TTS via Python...");
+        console.log(`🔊 Running Edge-TTS via Python... (Text length: ${text.length} chars)`);
         const { stdout, stderr } = await execAsync(command, {
             maxBuffer: 50 * 1024 * 1024,
-            timeout: 300000 // 5 minute timeout for long audio
+            timeout: 1200000 // 20 minutes timeout for long audio (increased from 5 min)
         });
 
         if (stderr && !stderr.includes("INFO") && !stderr.includes("edge_tts")) {
@@ -74,16 +74,35 @@ export const generateSpeech = async (text, outputFile, language = "en") => {
             fs.unlinkSync(tempTextFile);
         }
 
-        console.error("❌ Edge-TTS Error:", error.message);
+        console.error("❌ Edge-TTS Error Details:", {
+            message: error.message,
+            stderr: error.stderr,
+            stdout: error.stdout,
+            signal: error.signal,
+            code: error.code
+        });
 
-        if (error.message.includes("python") || error.message.includes("not recognized")) {
+        // Check for timeout
+        if (error.signal === 'SIGTERM') {
+            throw new Error("Edge-TTS timed out. The text might be too long for a single request. Please try a shorter duration.");
+        }
+
+        // Check for specific "command not found" indicators
+        const isCommandNotFound =
+            (error.message && error.message.includes("not recognized")) || // Windows
+            (error.message && error.message.includes("command not found")) || // Unix
+            (error.code === 'ENOENT'); // Node internal
+
+        if (isCommandNotFound) {
             throw new Error("Python is not installed or not in PATH. Please install Python 3.7+ and edge-tts: pip install edge-tts");
         }
 
-        if (error.message.includes("No module named")) {
+        if (error.message && error.message.includes("No module named")) {
             throw new Error("edge-tts module not found. Please run: pip install edge-tts");
         }
 
-        throw new Error(`Edge-TTS failed: ${error.message}`);
+        // Pass through the actual stderr if available, as it usually contains the specific python/lib error
+        const detailedError = error.stderr || error.message;
+        throw new Error(`Edge-TTS failed: ${detailedError}`);
     }
 };

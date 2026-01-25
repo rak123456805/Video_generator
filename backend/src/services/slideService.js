@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { scriptToSlides } from "./scriptToSlides.js";
+import { generateImagesForSlides } from "./imageService.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -75,6 +76,12 @@ export const generateSlides = async (
   const generatedImages = [];
 
   /* --------------------------------------------------
+     4.5️⃣ Generate images for slides (in parallel)
+  -------------------------------------------------- */
+  console.log(`🎨 Generating images for slides...`);
+  const imagePaths = await generateImagesForSlides(slideData, outputDir);
+
+  /* --------------------------------------------------
      5️⃣ Render slides
   -------------------------------------------------- */
   for (let i = 0; i < slideData.length; i++) {
@@ -99,9 +106,28 @@ export const generateSlides = async (
         </div>`;
     }
 
+    // Generate image HTML if image exists
+    let imageHtml = "";
+    let hasImageClass = "";
+    if (imagePaths[i]) {
+      try {
+        // Read image and convert to base64 for embedding
+        const imageBuffer = fs.readFileSync(imagePaths[i]);
+        const base64Image = imageBuffer.toString('base64');
+        const mimeType = 'image/png';
+        imageHtml = `
+          <div class="slide-image-container">
+            <img class="slide-image" src="data:${mimeType};base64,${base64Image}" alt="Slide illustration" />
+          </div>`;
+        hasImageClass = " has-image";
+      } catch (err) {
+        console.warn(`⚠️ Failed to embed image for slide ${i + 1}: ${err.message}`);
+      }
+    }
+
     const finalHtml = htmlTemplate.replace(
       '<div class="slide" id="slide">',
-      `<div class="slide" id="slide"
+      `<div class="slide${hasImageClass}" id="slide"
         style="
           font-family:${getFontFamily(language)};
           transform: scale(${getFontScale(language)});
@@ -109,7 +135,8 @@ export const generateSlides = async (
         ">
         <div class="title">${slide.title}</div>
         <div class="bullets">${bulletHtml}</div>
-        ${examplesHtml}`
+        ${examplesHtml}
+        ${imageHtml}`
     );
 
     await page.setContent(finalHtml);

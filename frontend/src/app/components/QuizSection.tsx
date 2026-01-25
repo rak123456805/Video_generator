@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Brain, Loader2, CheckCircle2, XCircle, ChevronRight, RotateCcw } from "lucide-react";
 import apiClient from "../../api/client";
+import { useVideo } from "../contexts/VideoContext";
 
 interface QuizQuestion {
     question: string;
@@ -17,7 +18,7 @@ interface QuizSectionProps {
 }
 
 export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps) {
-    const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+    const { videoData, setVideoData } = useVideo();
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
     const [userAnswers, setUserAnswers] = useState<number[]>([]);
@@ -26,12 +27,15 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
     const [quizCompleted, setQuizCompleted] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // Load quiz from context if available
+    const questions = (videoData.quiz as QuizQuestion[]) || [];
+
     const currentQuestion = questions[currentQuestionIndex];
     const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
     /* ---------------- GENERATE QUIZ ---------------- */
     const handleGenerateQuiz = async () => {
-        if (!scriptSlides || scriptSlides.length === 0) {
+        if (!topic || topic.trim() === '') {
             setError("No video content available. Please generate a video first.");
             return;
         }
@@ -42,12 +46,17 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
         try {
             const res = await apiClient.post("/quiz/generate", {
                 topic,
-                scriptSlides,
+                scriptSlides: scriptSlides || [],
                 language,
                 questionCount: 10
             });
 
-            setQuestions(res.data.questions);
+            // Save quiz to context (localStorage)
+            setVideoData({
+                quiz: res.data.questions,
+                showQuiz: true
+            });
+
             setCurrentQuestionIndex(0);
             setUserAnswers([]);
             setQuizCompleted(false);
@@ -131,7 +140,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
 
                 <button
                     onClick={handleGenerateQuiz}
-                    disabled={!scriptSlides || scriptSlides.length === 0}
+                    disabled={!topic || topic.trim() === ''}
                     className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 
                      hover:from-purple-700 hover:to-indigo-700 text-white p-4 rounded-xl
                      font-semibold text-lg transition-all duration-300
@@ -142,7 +151,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                     Generate Quiz
                 </button>
 
-                {(!scriptSlides || scriptSlides.length === 0) && (
+                {(!topic || topic.trim() === '') && (
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">
                         Generate a video first to create a quiz
                     </p>
@@ -217,8 +226,8 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                             <div
                                 key={index}
                                 className={`p-4 rounded-xl border-2 ${isCorrect
-                                        ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20"
-                                        : "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20"
+                                    ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20"
+                                    : "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20"
                                     }`}
                             >
                                 <div className="flex items-start gap-3 mb-2">
@@ -333,12 +342,12 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                             >
                                 <div className="flex items-center gap-3">
                                     <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${showCorrectness && isCorrect
-                                            ? "border-green-500 bg-green-500"
-                                            : showCorrectness && isSelected && !isCorrect
-                                                ? "border-red-500 bg-red-500"
-                                                : isSelected
-                                                    ? "border-purple-500 bg-purple-500"
-                                                    : "border-gray-400"
+                                        ? "border-green-500 bg-green-500"
+                                        : showCorrectness && isSelected && !isCorrect
+                                            ? "border-red-500 bg-red-500"
+                                            : isSelected
+                                                ? "border-purple-500 bg-purple-500"
+                                                : "border-gray-400"
                                         }`}>
                                         {showCorrectness && isCorrect && <CheckCircle2 className="w-4 h-4 text-white" />}
                                         {showCorrectness && isSelected && !isCorrect && <XCircle className="w-4 h-4 text-white" />}

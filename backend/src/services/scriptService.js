@@ -78,7 +78,7 @@ const buildPrompt = ({ topic, duration, mode, part, language }) => {
       * Keep the narration focused on explaining the bullets, and let viewers read the examples themselves.
     - \"examples\" should contain 1-2 REAL-WORLD, PRACTICAL examples that illustrate the concept.
       * **MAXIMUM 2 examples per slide** to prevent overflow
-      * Examples should be CONCISE (under 60 characters each)
+      * Examples should be CONCISE: ${language === 'en' ? 'under 60 characters each' : 'under 40 characters each (shorter for non-English to accommodate font scaling)'}
       * Examples should be concrete and relatable (e.g., \"Netflix uses React for its UI\" or \"Gmail's inbox is a real-world queue\")
       * Make examples diverse and interesting
       * Examples should help learners understand how the concept applies in practice

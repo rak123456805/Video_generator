@@ -31,6 +31,14 @@ An intelligent video course generator that creates educational videos with AI-ge
 - **Real-time Progress** tracking
 - **Interactive Dashboard** with multiple tabs
 
+### 🔐 Authentication
+- **Email/Password** authentication
+- **OAuth Support**: Google and GitHub sign-in
+- **Email Verification** for new accounts
+- **Password Reset** functionality
+- **Protected Routes** for secure access
+- **Session Management** with auto-refresh
+
 ## 🚀 Tech Stack
 
 ### Backend
@@ -46,6 +54,7 @@ An intelligent video course generator that creates educational videos with AI-ge
 - **Tailwind CSS** for styling
 - **Lucide React** for icons
 - **Axios** for API calls
+- **Supabase** for authentication
 
 ## 📋 Prerequisites
 
@@ -80,6 +89,18 @@ GOOGLE_API_KEY=your_gemini_api_key_here
 cd ../frontend
 npm install
 ```
+
+Create `.env` file:
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+Get your Supabase credentials from:
+1. Go to [Supabase](https://supabase.com)
+2. Create a new project (or use existing)
+3. Go to Project Settings → API
+4. Copy the Project URL and anon/public key
 
 ### 4. Install FFmpeg
 - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
@@ -247,9 +268,16 @@ POST /api/quiz/generate
 
 ## 🔐 Environment Variables
 
+### Backend (.env)
 ```env
 PORT=5000                    # Backend server port
 GOOGLE_API_KEY=your_key      # Gemini AI API key
+```
+
+### Frontend (.env)
+```env
+VITE_SUPABASE_URL=your_supabase_project_url          # Supabase project URL
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key        # Supabase anon key
 ```
 
 ## 📝 License
@@ -272,13 +300,13 @@ MIT License - feel free to use this project for educational purposes.
 ## 🚧 Future Enhancements
 
 - [ ] Quiz history and analytics
-- [ ] User authentication
 - [ ] Video templates
 - [ ] Custom voice selection
 - [ ] Subtitle generation
 - [ ] Video editing capabilities
 - [ ] Export to YouTube
 - [ ] Collaborative features
+- [ ] User profiles and preferences
 
 ## 📞 Support
 
