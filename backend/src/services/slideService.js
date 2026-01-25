@@ -7,24 +7,21 @@ import { fileURLToPath } from "url";
 import { scriptToSlides } from "./scriptToSlides.js";
 import { generateImagesForSlides } from "./imageService.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Project root = .../backend/src  -> go up two levels -> .../backend
+const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
 
 /**
  * MAIN SLIDE GENERATOR
  */
-export const generateSlides = async (
-  script,
-  slideFolder,
-  language = "en"
-) => {
+export const generateSlides = async (script, slideFolder, language = "en") => {
   /* --------------------------------------------------
      1️⃣ Output directory
+     IMPORTANT: Use backend/generated so it matches server static path.
   -------------------------------------------------- */
-  const outputDir = path.join(
-    process.cwd(),
-    "generated",
-    slideFolder
-  );
+  const outputDir = path.join(BACKEND_ROOT, "generated", slideFolder);
 
   if (!fs.existsSync(outputDir)) {
     fs.mkdirSync(outputDir, { recursive: true });
@@ -40,18 +37,24 @@ export const generateSlides = async (
     maxSlides: 72,
   });
 
-  console.log(
-    `🚀 Generating ${slideData.length} slides for language: ${language}`
-  );
-
+  console.log(`🚀 Generating ${slideData.length} slides for language: ${language}`);
   if (!slideData.length) return [];
 
   /* --------------------------------------------------
-     3️⃣ Puppeteer setup
+     3️⃣ Puppeteer setup (Render-safe)
   -------------------------------------------------- */
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+
+  console.log("🧩 Puppeteer launch config:", {
+    hasExecutablePathEnv: Boolean(executablePath),
+    executablePath: executablePath || "(default)",
+    cacheDir: process.env.PUPPETEER_CACHE_DIR || "(default)",
+  });
+
   const browser = await puppeteer.launch({
     headless: "new",
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    executablePath: executablePath || undefined,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
   const page = await browser.newPage();
@@ -60,26 +63,20 @@ export const generateSlides = async (
   /* --------------------------------------------------
      4️⃣ Load HTML template
   -------------------------------------------------- */
-  const templatePath = path.join(
-    __dirname,
-    "slideTemplate.html"
-  );
+  const templatePath = path.join(__dirname, "slideTemplate.html");
 
   if (!fs.existsSync(templatePath)) {
+    await browser.close();
     throw new Error("slideTemplate.html not found");
   }
 
-  const htmlTemplate = fs.readFileSync(
-    templatePath,
-    "utf8"
-  );
-
+  const htmlTemplate = fs.readFileSync(templatePath, "utf8");
   const generatedImages = [];
 
   /* --------------------------------------------------
      4.5️⃣ Generate images for slides (in parallel)
   -------------------------------------------------- */
-  console.log(`🎨 Generating images for slides...`);
+  console.log("🎨 Generating images for slides...");
   const imagePaths = await generateImagesForSlides(slideData, outputDir);
 
   /* --------------------------------------------------
@@ -89,16 +86,14 @@ export const generateSlides = async (
     const slide = slideData[i];
 
     const bulletHtml = slide.bullets
-      .map(
-        b => `<div class="bullet">${b}</div>`
-      )
+      .map((b) => `<div class="bullet">${b}</div>`)
       .join("");
 
     // Generate examples HTML if examples exist
     let examplesHtml = "";
     if (slide.examples && slide.examples.length > 0) {
       const exampleItems = slide.examples
-        .map(ex => `<div class="example-item">${ex}</div>`)
+        .map((ex) => `<div class="example-item">${ex}</div>`)
         .join("");
       examplesHtml = `
         <div class="examples-section">
@@ -112,10 +107,9 @@ export const generateSlides = async (
     let hasImageClass = "";
     if (imagePaths[i]) {
       try {
-        // Read image and convert to base64 for embedding
         const imageBuffer = fs.readFileSync(imagePaths[i]);
-        const base64Image = imageBuffer.toString('base64');
-        const mimeType = 'image/png';
+        const base64Image = imageBuffer.toString("base64");
+        const mimeType = "image/png";
         imageHtml = `
           <div class="slide-image-container">
             <img class="slide-image" src="data:${mimeType};base64,${base64Image}" alt="Slide illustration" />
@@ -181,7 +175,6 @@ function getFontFamily(lang) {
 
 /* ==================================================
    FONT SCALE PER LANGUAGE
-   (Improves readability for Indian scripts)
 ================================================== */
 
 function getFontScale(lang) {
