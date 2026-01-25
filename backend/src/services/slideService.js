@@ -43,7 +43,7 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
   /* --------------------------------------------------
      3️⃣ Puppeteer setup (Render-safe)
   -------------------------------------------------- */
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
 
   console.log("🧩 Puppeteer launch config:", {
     hasExecutablePathEnv: Boolean(executablePath),
