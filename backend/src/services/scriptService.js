@@ -105,7 +105,28 @@ export const generateAIScript = async ({
   try {
     console.log(`🧠 Requesting structured script from Gemini for "${topic}"...`);
 
-    const result = await model.generateContent(prompt);
+    // Retry logic with fallback models
+    const models = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro"];
+    let result;
+    let lastError;
+
+    for (const modelName of models) {
+      try {
+        console.log(`🤖 Attempting generation with model: ${modelName}`);
+        const currentModel = genAI.getGenerativeModel({
+          model: modelName,
+          generationConfig: { responseMimeType: "application/json" }
+        });
+
+        result = await currentModel.generateContent(prompt);
+        if (result) break; // Success
+      } catch (e) {
+        console.warn(`⚠️ Model ${modelName} failed: ${e.message}`);
+        lastError = e;
+      }
+    }
+
+    if (!result) throw lastError;
     const response = await result.response;
     const text = response.text();
 
