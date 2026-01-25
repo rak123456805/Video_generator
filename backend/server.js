@@ -37,7 +37,8 @@ const __dirname = path.dirname(__filename);
 
 /* ---------------- GENERATED FOLDER ---------------- */
 
-const generatedPath = path.join(process.cwd(), "generated");
+const generatedPath = path.join(__dirname, "generated");
+
 if (!fs.existsSync(generatedPath)) {
   fs.mkdirSync(generatedPath, { recursive: true });
   console.log("📁 Created 'generated' folder for assets");
