@@ -15,10 +15,9 @@ const app = express();
 /* ---------------- MIDDLEWARE ---------------- */
 
 app.use(
-  cors({
-    origin: "http://localhost:5173", // frontend
-    methods: ["GET", "POST"],
-    credentials: true,
+  origin: ["http://localhost:5173", "https://genvideo-j52l.onrender.com"], // frontend
+  methods: ["GET", "POST"],
+  credentials: true,
   })
 );
 
