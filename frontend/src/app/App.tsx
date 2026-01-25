@@ -14,7 +14,11 @@ import { AuthCallbackPage } from './components/AuthCallbackPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<string>('home');
+  const [currentPage, setCurrentPage] = useState<string>(() => {
+    const path = window.location.pathname;
+    if (path === '/auth/callback') return 'auth/callback';
+    return 'home';
+  });
 
   const renderPage = () => {
     switch (currentPage) {
