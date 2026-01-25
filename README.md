@@ -290,7 +290,7 @@ MIT License - feel free to use this project for educational purposes.
 - GitHub: [@rak123456805](https://github.com/rak123456805)
 - Repository: [Text_to_video_Generator](https://github.com/rak123456805/Text_to_video_Generator)
 
-## 🙏 Acknowledgments
+opr## 🙏 Acknowledgments
 
 - **Google Gemini AI** for content generation
 - **Microsoft Edge TTS** for voice synthesis
