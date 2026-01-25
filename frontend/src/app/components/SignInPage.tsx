@@ -48,10 +48,12 @@ export function SignInPage({ onNavigate }: SignInPageProps) {
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <Video className="w-7 h-7 text-white" />
-              </div>
-              <span className="text-2xl font-semibold text-gray-900 dark:text-white">
+              <img
+                src="/logo.png"
+                alt="AI EduVideo Logo"
+                className="w-20 h-20 object-contain bg-white p-1.5 rounded-2xl shadow-md"
+              />
+              <span className="text-3xl font-bold text-gray-900 dark:text-white">
                 AI EduVideo
               </span>
             </div>

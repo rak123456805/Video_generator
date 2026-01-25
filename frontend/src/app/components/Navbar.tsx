@@ -24,10 +24,12 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
               onClick={() => onNavigate(user ? 'dashboard' : 'home')}
               className="flex items-center gap-2"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <Video className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-semibold text-gray-900 dark:text-white">
+              <img
+                src="/logo.png"
+                alt="AI EduVideo Logo"
+                className="w-12 h-12 object-contain bg-white p-1 rounded-lg shadow-sm"
+              />
+              <span className="text-2xl font-bold text-gray-900 dark:text-white">
                 AI EduVideo
               </span>
             </button>
