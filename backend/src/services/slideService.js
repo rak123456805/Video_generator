@@ -13,6 +13,50 @@ const __dirname = path.dirname(__filename);
 // Project root = .../backend/src  -> go up two levels -> .../backend
 const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
 
+/* --------------------------------------------------
+   Resolve Chrome path for Render / Puppeteer
+-------------------------------------------------- */
+function resolveChromeExecutablePath() {
+  // 1) Use env var if present
+  const envPathRaw = process.env.PUPPETEER_EXECUTABLE_PATH;
+  const envPath = typeof envPathRaw === "string" ? envPathRaw.trim() : "";
+
+  if (envPath) {
+    if (fs.existsSync(envPath)) return envPath;
+    console.warn(`⚠️ PUPPETEER_EXECUTABLE_PATH set but file not found: ${envPath}`);
+  }
+
+  // 2) Search common Puppeteer cache locations
+  const candidates = [
+    process.env.PUPPETEER_CACHE_DIR?.trim(),            // if you set it
+    "/opt/render/.cache/puppeteer",                     // Render common
+    path.join(process.env.HOME || "", ".cache", "puppeteer"),
+    path.join(BACKEND_ROOT, ".cache", "puppeteer"),
+  ].filter(Boolean);
+
+  for (const base of candidates) {
+    try {
+      const chromeRoot = path.join(base, "chrome");
+      if (!fs.existsSync(chromeRoot)) continue;
+
+      // chrome/linux-143.0....../chrome-linux64/chrome
+      const linuxDirs = fs
+        .readdirSync(chromeRoot, { withFileTypes: true })
+        .filter((d) => d.isDirectory() && d.name.startsWith("linux-"))
+        .map((d) => d.name);
+
+      for (const d of linuxDirs) {
+        const exe = path.join(chromeRoot, d, "chrome-linux64", "chrome");
+        if (fs.existsSync(exe)) return exe;
+      }
+    } catch (e) {
+      console.warn(`⚠️ Chrome path scan failed for base=${base}: ${e?.message}`);
+    }
+  }
+
+  return null;
+}
+
 /**
  * MAIN SLIDE GENERATOR
  */
@@ -41,19 +85,27 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
   if (!slideData.length) return [];
 
   /* --------------------------------------------------
-     3️⃣ Puppeteer setup (Render-safe)
+     3️⃣ Puppeteer setup (Render-safe + auto-detect)
   -------------------------------------------------- */
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH?.trim();
+  const chromePath = resolveChromeExecutablePath();
 
   console.log("🧩 Puppeteer launch config:", {
-    hasExecutablePathEnv: Boolean(executablePath),
-    executablePath: executablePath || "(default)",
+    hasExecutablePathEnv: Boolean(process.env.PUPPETEER_EXECUTABLE_PATH?.trim()),
+    resolvedChromePath: chromePath || "(not found)",
+    resolvedPathExists: chromePath ? fs.existsSync(chromePath) : false,
     cacheDir: process.env.PUPPETEER_CACHE_DIR || "(default)",
   });
 
+  if (!chromePath) {
+    throw new Error(
+      "Chrome executable not found. Ensure build runs: `npx puppeteer browsers install chrome` " +
+      "and/or set PUPPETEER_CACHE_DIR or PUPPETEER_EXECUTABLE_PATH."
+    );
+  }
+
   const browser = await puppeteer.launch({
     headless: "new",
-    executablePath: executablePath || undefined,
+    executablePath: chromePath,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
