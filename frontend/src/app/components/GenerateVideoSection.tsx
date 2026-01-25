@@ -30,7 +30,8 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
   }, [videoData.topic, videoData.language]);
 
   const backendDuration = duration === "1" ? "1hr" : `${duration}min`;
-  const BASE_URL = "http://localhost:5000";
+  // Check for environment variable first, otherwise fallback to localhost
+  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
   const buildVideoUrl = (path: string) => `${BASE_URL}${path}`;
 
