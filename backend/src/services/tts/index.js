@@ -37,13 +37,16 @@ export const generateSpeech = async (text, outputFile, language = "en") => {
     fs.writeFileSync(tempTextFile, text, "utf-8");
 
     try {
-        // Use python -m edge_tts instead of edge-tts command
-        const command = `python -m edge_tts --voice "${voice}" --file "${tempTextFile}" --write-media "${outputPath}"`;
+        // Platform check: Linux/Mac usually use 'python3', Windows uses 'python'
+        const pythonCommand = process.platform === "win32" ? "python" : "python3";
 
-        console.log(`🔊 Running Edge-TTS via Python... (Text length: ${text.length} chars)`);
+        // Use python -m edge_tts
+        const command = `${pythonCommand} -m edge_tts --voice "${voice}" --file "${tempTextFile}" --write-media "${outputPath}"`;
+
+        console.log(`🔊 Running Edge-TTS via ${pythonCommand}... (Text length: ${text.length} chars)`);
         const { stdout, stderr } = await execAsync(command, {
             maxBuffer: 50 * 1024 * 1024,
-            timeout: 1200000 // 20 minutes timeout for long audio (increased from 5 min)
+            timeout: 1200000 // 20 minutes timeout for long audio
         });
 
         if (stderr && !stderr.includes("INFO") && !stderr.includes("edge_tts")) {
