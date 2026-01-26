@@ -7,6 +7,7 @@ import {
   Play,
   Download,
   XCircle,
+  RotateCcw,
 } from "lucide-react";
 import apiClient from "../../api/client";
 import { useVideo } from "../contexts/VideoContext";
@@ -31,7 +32,7 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
 
   const backendDuration = duration === "1" ? "1hr" : `${duration}min`;
   // Check for environment variable first, otherwise fallback to localhost
-  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const BASE_URL = (import.meta as any).env.VITE_API_URL || "http://localhost:5000";
 
   const buildVideoUrl = (path: string) => `${BASE_URL}${path}`;
 
@@ -454,6 +455,3 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
     </div>
   );
 }
-
-// Add RotateCcw import
-import { RotateCcw } from "lucide-react";

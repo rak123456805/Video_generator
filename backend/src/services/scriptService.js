@@ -144,12 +144,16 @@ async function generateWithModelAndRetry(modelName, prompt, attempts = 3) {
       logGeminiError(e, { modelName, attempt: i + 1 });
 
       const status = e?.status || e?.response?.status;
-      const transient =
-        status === 429 || status === 500 || status === 503 || status === 504 || status == null;
+      const isQuotaError = status === 429;
+      const transient = isQuotaError || status === 500 || status === 503 || status === 504 || status == null;
+
+      if (isQuotaError) {
+        console.error(`🛑 QUOTA EXCEEDED for model ${modelName}.`);
+      }
 
       if (!transient || i === attempts - 1) break;
 
-      const backoff = 1000 * Math.pow(2, i);
+      const backoff = 2000 * Math.pow(2, i); // increased initial backoff
       console.warn(`⏳ Retrying ${modelName} in ${backoff}ms due to status ${status ?? "unknown"}...`);
       await sleep(backoff);
     }
@@ -176,7 +180,7 @@ export const generateAIScript = async ({
   try {
     console.log(`🧠 Requesting structured script from Gemini for "${topic}"...`);
 
-    const models = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-pro"];
+    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
     let result;
     let lastError;
     let usedModel = null;
@@ -244,6 +248,10 @@ export const generateAIScript = async ({
     return scriptData;
   } catch (err) {
     logGeminiError(err, { where: "generateAIScript-final" });
-    throw new Error("Failed to generate script: " + (err?.message || "unknown error"));
+    const isQuota = err?.status === 429 || err?.message?.includes("429");
+    const msg = isQuota
+      ? "Gemini API Quota Exceeded. Please wait a few minutes or upgrade your plan."
+      : (err?.message || "unknown error");
+    throw new Error("Failed to generate script: " + msg);
   }
 };

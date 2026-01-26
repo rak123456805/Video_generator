@@ -17,40 +17,70 @@ const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
    Resolve Chrome path for Render / Puppeteer
 -------------------------------------------------- */
 function resolveChromeExecutablePath() {
-  // 1) Use env var if present
+  // 1) Use env var if present (highest priority)
   const envPathRaw = process.env.PUPPETEER_EXECUTABLE_PATH;
   const envPath = typeof envPathRaw === "string" ? envPathRaw.trim() : "";
 
   if (envPath) {
-    if (fs.existsSync(envPath)) return envPath;
+    if (fs.existsSync(envPath)) {
+      console.log(`✅ Using Chrome from PUPPETEER_EXECUTABLE_PATH: ${envPath}`);
+      return envPath;
+    }
     console.warn(`⚠️ PUPPETEER_EXECUTABLE_PATH set but file not found: ${envPath}`);
   }
 
   // 2) Search common Puppeteer cache locations
   const candidates = [
-    process.env.PUPPETEER_CACHE_DIR?.trim(),            // if you set it
-    "/opt/render/.cache/puppeteer",                     // Render common
+    process.env.PUPPETEER_CACHE_DIR?.trim(),
+    "/opt/render/.cache/puppeteer",
     path.join(process.env.HOME || "", ".cache", "puppeteer"),
     path.join(BACKEND_ROOT, ".cache", "puppeteer"),
   ].filter(Boolean);
 
+  console.log("🔍 Searching for Chrome in candidates:", candidates);
+
   for (const base of candidates) {
     try {
       const chromeRoot = path.join(base, "chrome");
-      if (!fs.existsSync(chromeRoot)) continue;
+      if (!fs.existsSync(chromeRoot)) {
+        console.log(`📂 Base not found: ${chromeRoot}`);
+        continue;
+      }
 
-      // chrome/linux-143.0....../chrome-linux64/chrome
       const linuxDirs = fs
         .readdirSync(chromeRoot, { withFileTypes: true })
         .filter((d) => d.isDirectory() && d.name.startsWith("linux-"))
+        .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true })) // newest first
         .map((d) => d.name);
 
+      console.log(`📁 Found linux- versions in ${chromeRoot}:`, linuxDirs);
+
       for (const d of linuxDirs) {
-        const exe = path.join(chromeRoot, d, "chrome-linux64", "chrome");
-        if (fs.existsSync(exe)) return exe;
+        // Puppeteer 20+ uses chrome-linux64/chrome, older used chrome-linux/chrome
+        const possibleExes = [
+          path.join(chromeRoot, d, "chrome-linux64", "chrome"),
+          path.join(chromeRoot, d, "chrome-linux", "chrome"),
+          path.join(chromeRoot, d, "chrome"),
+        ];
+
+        for (const exe of possibleExes) {
+          if (fs.existsSync(exe)) {
+            console.log(`✅ Chrome executable found: ${exe}`);
+            return exe;
+          }
+        }
       }
     } catch (e) {
       console.warn(`⚠️ Chrome path scan failed for base=${base}: ${e?.message}`);
+    }
+  }
+
+  // 3) Final fallbacks for Linux environments
+  const commonLinuxPaths = ["/usr/bin/google-chrome", "/usr/bin/chromium-browser", "/usr/bin/chromium"];
+  for (const p of commonLinuxPaths) {
+    if (fs.existsSync(p)) {
+      console.log(`✅ Found system Chrome: ${p}`);
+      return p;
     }
   }
 
@@ -105,8 +135,16 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
 
   const browser = await puppeteer.launch({
     headless: "new",
-    executablePath: chromePath,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    ...(chromePath ? { executablePath: chromePath } : {}),
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+    ],
+  }).catch(err => {
+    console.error("❌ FAILED TO LAUNCH PUPPETEER:", err);
+    throw new Error(`Puppeteer launch failed. Chrome path: ${chromePath || "default"}. Error: ${err.message}`);
   });
 
   const page = await browser.newPage();
