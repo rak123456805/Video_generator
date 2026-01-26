@@ -80,6 +80,23 @@ function logGeminiError(err, ctx = {}) {
 }
 
 /**
+ * Try to read RetryInfo retryDelay from the error message.
+ * Your logs show: retryDelay":"27s" or "Please retry in 27.8s"
+ */
+function getRetryDelayMs(err) {
+  const msg = String(err?.message || "");
+  // retryDelay":"27s"
+  const m1 = msg.match(/retryDelay":"(\d+)s"/i);
+  if (m1?.[1]) return Number(m1[1]) * 1000;
+
+  // Please retry in 27.807283311s
+  const m2 = msg.match(/Please retry in ([0-9.]+)s/i);
+  if (m2?.[1]) return Math.ceil(Number(m2[1]) * 1000);
+
+  return null;
+}
+
+/**
  * Extract the JSON array safely from a model response.
  * Handles:
  * - extra text before/after
@@ -103,12 +120,10 @@ function extractAndRepairJSONArray(raw) {
   // Prefer last ']'
   let lastBracket = text.lastIndexOf("]");
   if (lastBracket !== -1 && lastBracket > firstBracket) {
-    const candidate = text.substring(firstBracket, lastBracket + 1);
-    return candidate;
+    return text.substring(firstBracket, lastBracket + 1);
   }
 
   // If no closing bracket, likely truncated.
-  // Strategy: take from first '[' up to last complete '}' and close array.
   const fromArrayStart = text.substring(firstBracket);
 
   const lastObjEnd = fromArrayStart.lastIndexOf("}");
@@ -127,44 +142,46 @@ function extractAndRepairJSONArray(raw) {
   return repaired;
 }
 
-async function generateWithModelAndRetry(modelName, prompt, attempts = 3) {
-  // Only use JSON mode for models that officially support it in this SDK version
-  const supportsJson = modelName.includes("1.5") || modelName.includes("2.0") || modelName.includes("2.5") || modelName.includes("exp");
+async function generateWithGemini25Flash(prompt, attempts = 3) {
+  const modelName = "gemini-2.5-flash";
 
+  // In your SDK/version, JSON response config works for 2.5 flash (based on your successful logs)
   const currentModel = genAI.getGenerativeModel({
     model: modelName,
-    ...(supportsJson ? { generationConfig: { responseMimeType: "application/json" } } : {}),
+    generationConfig: { responseMimeType: "application/json" },
   });
 
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
-      console.log(`🤖 Attempting generation with model: ${modelName} (supportsJson: ${supportsJson}) (try ${i + 1}/${attempts})`);
+      console.log(`🤖 Attempting generation with model: ${modelName} (try ${i + 1}/${attempts})`);
       const result = await currentModel.generateContent(prompt);
-      return result;
+      return { result, usedModel: modelName };
     } catch (e) {
       lastErr = e;
       logGeminiError(e, { modelName, attempt: i + 1 });
 
       const status = e?.status || e?.response?.status;
-      const isQuotaError = status === 429;
-      const transient = isQuotaError || status === 500 || status === 503 || status === 504 || status == null;
 
-      if (isQuotaError) {
-        console.error(`🛑 QUOTA EXCEEDED for model ${modelName}.`);
-        if (i < attempts - 1) {
-          const backoff = 3000 * Math.pow(2, i);
-          console.warn(`⏳ Retrying ${modelName} in ${backoff}ms after quota hit...`);
-          await sleep(backoff);
-          continue;
-        }
+      // Respect RetryInfo if quota hit
+      if (status === 429 && i < attempts - 1) {
+        const retryDelayMs = getRetryDelayMs(e);
+        const waitMs = retryDelayMs ?? 30000; // default 30s if not provided
+        console.warn(`🛑 QUOTA EXCEEDED. Waiting ${waitMs}ms then retrying...`);
+        await sleep(waitMs);
+        continue;
       }
 
-      if (!transient || i === attempts - 1) break;
+      // transient server errors
+      const transient = status === 500 || status === 503 || status === 504 || status == null;
+      if (transient && i < attempts - 1) {
+        const backoff = 5000 * Math.pow(2, i); // 5s, 10s
+        console.warn(`⏳ Retrying in ${backoff}ms due to status ${status ?? "unknown"}...`);
+        await sleep(backoff);
+        continue;
+      }
 
-      const backoff = 2000 * Math.pow(2, i);
-      console.warn(`⏳ Retrying ${modelName} in ${backoff}ms due to status ${status ?? "unknown"}...`);
-      await sleep(backoff);
+      break;
     }
   }
 
@@ -187,31 +204,9 @@ export const generateAIScript = async ({
   const prompt = buildPrompt({ topic, duration, mode, part, language });
 
   try {
-    console.log(`🧠 Requesting structured script from Gemini for "${topic}"...`);
+    console.log(`🧠 Requesting structured script from Gemini 2.5 Flash for "${topic}"...`);
 
-    const models = [
-      "gemini-1.5-flash",
-      "gemini-2.0-flash-exp",
-      "gemini-2.5-flash", // User's custom/working name
-      "gemini-1.5-pro",
-      "gemini-pro" // Alias for 1.0 which is more stable than specific versions
-    ];
-    let result;
-    let lastError;
-    let usedModel = null;
-
-    for (const modelName of models) {
-      try {
-        result = await generateWithModelAndRetry(modelName, prompt, 3);
-        usedModel = modelName;
-        break;
-      } catch (e) {
-        console.warn(`⚠️ Model ${modelName} failed: ${e?.message || e}`);
-        lastError = e;
-      }
-    }
-
-    if (!result) throw lastError || new Error("All Gemini model attempts failed.");
+    const { result, usedModel } = await generateWithGemini25Flash(prompt, 3);
 
     const response = await result.response;
     const rawText = response.text();
@@ -219,12 +214,9 @@ export const generateAIScript = async ({
     let scriptData = [];
 
     try {
-      // Try direct parse first
       scriptData = JSON.parse(rawText);
     } catch (_) {
       console.warn("JSON Parsing failed, extracting/repairing JSON array...");
-
-      // Extract + repair
       const repairedJson = extractAndRepairJSONArray(rawText);
 
       try {
@@ -245,7 +237,9 @@ export const generateAIScript = async ({
     // Add word counts
     scriptData = scriptData.map((slide) => ({
       ...slide,
-      wordCount: String(slide?.narration || "").split(/\s+/).filter(Boolean).length,
+      wordCount: String(slide?.narration || "")
+        .split(/\s+/)
+        .filter(Boolean).length,
     }));
 
     const totalWords = scriptData.reduce((sum, slide) => sum + (slide.wordCount || 0), 0);
@@ -263,10 +257,14 @@ export const generateAIScript = async ({
     return scriptData;
   } catch (err) {
     logGeminiError(err, { where: "generateAIScript-final" });
-    const isQuota = err?.status === 429 || err?.message?.includes("429");
+
+    const status = err?.status || err?.response?.status;
+    const isQuota = status === 429 || String(err?.message || "").includes("429");
+
     const msg = isQuota
-      ? "Gemini API Quota Exceeded. Please wait a few minutes or upgrade your plan."
+      ? "Gemini API Quota Exceeded. Please wait and retry, or upgrade your plan."
       : (err?.message || "unknown error");
+
     throw new Error("Failed to generate script: " + msg);
   }
 };
