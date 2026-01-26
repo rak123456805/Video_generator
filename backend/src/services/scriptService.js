@@ -128,15 +128,18 @@ function extractAndRepairJSONArray(raw) {
 }
 
 async function generateWithModelAndRetry(modelName, prompt, attempts = 3) {
+  // Only use JSON mode for models that officially support it in this SDK version
+  const supportsJson = modelName.includes("1.5") || modelName.includes("2.0") || modelName.includes("2.5") || modelName.includes("exp");
+
   const currentModel = genAI.getGenerativeModel({
     model: modelName,
-    generationConfig: { responseMimeType: "application/json" },
+    ...(supportsJson ? { generationConfig: { responseMimeType: "application/json" } } : {}),
   });
 
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
-      console.log(`🤖 Attempting generation with model: ${modelName} (try ${i + 1}/${attempts})`);
+      console.log(`🤖 Attempting generation with model: ${modelName} (supportsJson: ${supportsJson}) (try ${i + 1}/${attempts})`);
       const result = await currentModel.generateContent(prompt);
       return result;
     } catch (e) {
@@ -149,11 +152,17 @@ async function generateWithModelAndRetry(modelName, prompt, attempts = 3) {
 
       if (isQuotaError) {
         console.error(`🛑 QUOTA EXCEEDED for model ${modelName}.`);
+        if (i < attempts - 1) {
+          const backoff = 3000 * Math.pow(2, i);
+          console.warn(`⏳ Retrying ${modelName} in ${backoff}ms after quota hit...`);
+          await sleep(backoff);
+          continue;
+        }
       }
 
       if (!transient || i === attempts - 1) break;
 
-      const backoff = 2000 * Math.pow(2, i); // increased initial backoff
+      const backoff = 2000 * Math.pow(2, i);
       console.warn(`⏳ Retrying ${modelName} in ${backoff}ms due to status ${status ?? "unknown"}...`);
       await sleep(backoff);
     }
@@ -180,7 +189,13 @@ export const generateAIScript = async ({
   try {
     console.log(`🧠 Requesting structured script from Gemini for "${topic}"...`);
 
-    const models = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"];
+    const models = [
+      "gemini-1.5-flash",
+      "gemini-2.0-flash-exp",
+      "gemini-2.5-flash", // User's custom/working name
+      "gemini-1.5-pro",
+      "gemini-pro" // Alias for 1.0 which is more stable than specific versions
+    ];
     let result;
     let lastError;
     let usedModel = null;
