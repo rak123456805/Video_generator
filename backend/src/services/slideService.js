@@ -14,22 +14,36 @@ const __dirname = path.dirname(__filename);
 const BACKEND_ROOT = path.resolve(__dirname, "..", "..");
 
 /* --------------------------------------------------
-   Resolve Chrome path for Render / Puppeteer
+   Render-safe Puppeteer Chrome resolver (v24 compatible)
 -------------------------------------------------- */
+
+function exists(p) {
+  try {
+    return Boolean(p) && fs.existsSync(p);
+  } catch {
+    return false;
+  }
+}
+
 function resolveChromeExecutablePath() {
-  // 1) Use env var if present (highest priority)
+  // 1) Env var override (best)
   const envPathRaw = process.env.PUPPETEER_EXECUTABLE_PATH;
   const envPath = typeof envPathRaw === "string" ? envPathRaw.trim() : "";
-
   if (envPath) {
-    if (fs.existsSync(envPath)) {
+    if (exists(envPath)) {
       console.log(`✅ Using Chrome from PUPPETEER_EXECUTABLE_PATH: ${envPath}`);
       return envPath;
     }
-    console.warn(`⚠️ PUPPETEER_EXECUTABLE_PATH set but file not found: ${envPath}`);
+    console.warn(`⚠️ PUPPETEER_EXECUTABLE_PATH set but not found: ${envPath}`);
   }
 
-  // 2) Search common Puppeteer cache locations
+  // 2) Puppeteer cache paths (Render + local)
+  // Puppeteer v24 installs to:
+  // <cacheDir>/
+  //   chrome/
+  //     linux-<buildId>/chrome-linux64/chrome
+  // or sometimes:
+  //     linux-<buildId>/chrome-linux/chrome
   const candidates = [
     process.env.PUPPETEER_CACHE_DIR?.trim(),
     "/opt/render/.cache/puppeteer",
@@ -42,44 +56,55 @@ function resolveChromeExecutablePath() {
   for (const base of candidates) {
     try {
       const chromeRoot = path.join(base, "chrome");
-      if (!fs.existsSync(chromeRoot)) {
-        console.log(`📂 Base not found: ${chromeRoot}`);
+      if (!exists(chromeRoot)) {
+        console.log(`📂 Not found: ${chromeRoot}`);
         continue;
       }
 
+      // directories like: linux-123456, linux-124000...
       const linuxDirs = fs
         .readdirSync(chromeRoot, { withFileTypes: true })
         .filter((d) => d.isDirectory() && d.name.startsWith("linux-"))
-        .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true })) // newest first
-        .map((d) => d.name);
+        .map((d) => d.name)
+        .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 
-      console.log(`📁 Found linux- versions in ${chromeRoot}:`, linuxDirs);
+      console.log(`📁 Found linux-* in ${chromeRoot}:`, linuxDirs);
 
       for (const d of linuxDirs) {
-        // Puppeteer 20+ uses chrome-linux64/chrome, older used chrome-linux/chrome
+        const baseDir = path.join(chromeRoot, d);
+
         const possibleExes = [
-          path.join(chromeRoot, d, "chrome-linux64", "chrome"),
-          path.join(chromeRoot, d, "chrome-linux", "chrome"),
-          path.join(chromeRoot, d, "chrome"),
+          // Puppeteer 20+ typically
+          path.join(baseDir, "chrome-linux64", "chrome"),
+          // older layouts
+          path.join(baseDir, "chrome-linux", "chrome"),
+          // rare layout fallback
+          path.join(baseDir, "chrome"),
         ];
 
         for (const exe of possibleExes) {
-          if (fs.existsSync(exe)) {
+          if (exists(exe)) {
             console.log(`✅ Chrome executable found: ${exe}`);
             return exe;
           }
         }
       }
     } catch (e) {
-      console.warn(`⚠️ Chrome path scan failed for base=${base}: ${e?.message}`);
+      console.warn(`⚠️ Chrome scan failed for base=${base}: ${e?.message}`);
     }
   }
 
-  // 3) Final fallbacks for Linux environments
-  const commonLinuxPaths = ["/usr/bin/google-chrome", "/usr/bin/chromium-browser", "/usr/bin/chromium"];
+  // 3) System Chrome/Chromium (if you install chromium package)
+  const commonLinuxPaths = [
+    "/usr/bin/google-chrome",
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+  ];
+
   for (const p of commonLinuxPaths) {
-    if (fs.existsSync(p)) {
-      console.log(`✅ Found system Chrome: ${p}`);
+    if (exists(p)) {
+      console.log(`✅ Found system Chrome/Chromium: ${p}`);
       return p;
     }
   }
@@ -115,7 +140,7 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
   if (!slideData.length) return [];
 
   /* --------------------------------------------------
-     3️⃣ Puppeteer setup (Render-safe + auto-detect)
+     3️⃣ Puppeteer setup (Render-safe)
   -------------------------------------------------- */
   const chromePath = resolveChromeExecutablePath();
 
@@ -128,24 +153,33 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
 
   if (!chromePath) {
     throw new Error(
-      "Chrome executable not found. Ensure build runs: `npx puppeteer browsers install chrome` " +
-      "and/or set PUPPETEER_CACHE_DIR or PUPPETEER_EXECUTABLE_PATH."
+      "Chrome executable not found. On Render, ensure your build runs:\n" +
+      "  npx puppeteer browsers install chrome\n" +
+      "and set PUPPETEER_CACHE_DIR=/opt/render/.cache/puppeteer\n" +
+      "OR install system chromium and set PUPPETEER_EXECUTABLE_PATH."
     );
   }
 
-  const browser = await puppeteer.launch({
-    headless: "new",
-    ...(chromePath ? { executablePath: chromePath } : {}),
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
-  }).catch(err => {
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: "new",
+      executablePath: chromePath,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-zygote",
+        "--single-process",
+      ],
+    });
+  } catch (err) {
     console.error("❌ FAILED TO LAUNCH PUPPETEER:", err);
-    throw new Error(`Puppeteer launch failed. Chrome path: ${chromePath || "default"}. Error: ${err.message}`);
-  });
+    throw new Error(
+      `Puppeteer launch failed. Chrome path: ${chromePath}. Error: ${err?.message || err}`
+    );
+  }
 
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 720 });
@@ -176,14 +210,13 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
     const slide = slideData[i];
 
     const bulletHtml = slide.bullets
-      .map((b) => `<div class="bullet">${b}</div>`)
+      .map((b) => `<div class="bullet">${escapeHtml(b)}</div>`)
       .join("");
 
-    // Generate examples HTML if examples exist
     let examplesHtml = "";
     if (slide.examples && slide.examples.length > 0) {
       const exampleItems = slide.examples
-        .map((ex) => `<div class="example-item">${ex}</div>`)
+        .map((ex) => `<div class="example-item">${escapeHtml(ex)}</div>`)
         .join("");
       examplesHtml = `
         <div class="examples-section">
@@ -192,7 +225,6 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
         </div>`;
     }
 
-    // Generate image HTML if image exists
     let imageHtml = "";
     let hasImageClass = "";
     if (imagePaths[i]) {
@@ -210,6 +242,7 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
       }
     }
 
+    // Insert slide content into template
     const finalHtml = htmlTemplate.replace(
       '<div class="slide" id="slide">',
       `<div class="slide${hasImageClass}" id="slide"
@@ -218,14 +251,23 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
           transform: scale(${getFontScale(language)});
           transform-origin: top left;
         ">
-        <div class="title">${slide.title}</div>
+        <div class="title">${escapeHtml(slide.title)}</div>
         <div class="bullets">${bulletHtml}</div>
         ${examplesHtml}
         ${imageHtml}`
     );
 
-    await page.setContent(finalHtml);
-    await page.evaluateHandle("document.fonts.ready");
+    await page.setContent(finalHtml, { waitUntil: "domcontentloaded" });
+
+    // Wait for fonts (best-effort)
+    try {
+      await page.evaluate(async () => {
+        // eslint-disable-next-line no-undef
+        await document.fonts.ready;
+      });
+    } catch {
+      // ignore
+    }
 
     const fileName = `slide_${i + 1}.png`;
     const filePath = path.join(outputDir, fileName);
@@ -245,8 +287,18 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
 };
 
 /* ==================================================
-   FONT FAMILY PER LANGUAGE
+   HELPERS
 ================================================== */
+
+function escapeHtml(str) {
+  if (typeof str !== "string") return "";
+  return str
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
 
 function getFontFamily(lang) {
   const fonts = {
@@ -259,13 +311,8 @@ function getFontFamily(lang) {
     bn: "BengaliFont",
     en: "sans-serif",
   };
-
   return fonts[lang] || "sans-serif";
 }
-
-/* ==================================================
-   FONT SCALE PER LANGUAGE
-================================================== */
 
 function getFontScale(lang) {
   const scale = {
@@ -278,6 +325,5 @@ function getFontScale(lang) {
     bn: 1.15,
     en: 1.0,
   };
-
   return scale[lang] || 1.0;
 }
