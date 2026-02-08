@@ -4,9 +4,9 @@
   "type": "module",
   "main": "server.js",
   "scripts": {
-    "start": "node scripts/ensureChrome.mjs && node server.js",
+    "start": "node server.js",
     "dev": "nodemon --env-file .env server.js",
-    "postinstall": "pip3 install -r requirements.txt || pip install -r requirements.txt || echo 'Pip warning'"
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.10.0",

@@ -42,12 +42,12 @@ function resolveChromeExecutablePath() {
   // <cacheDir>/
   //   chrome/
   //     linux-<buildId>/chrome-linux64/chrome
-  // or sometimes:
-  //     linux-<buildId>/chrome-linux/chrome
+  //     win64-<buildId>/chrome.exe (Windows)
   const candidates = [
     process.env.PUPPETEER_CACHE_DIR?.trim(),
     "/opt/render/.cache/puppeteer",
     path.join(process.env.HOME || "", ".cache", "puppeteer"),
+    path.join(process.env.USERPROFILE || "", ".cache", "puppeteer"),
     path.join(BACKEND_ROOT, ".cache", "puppeteer"),
   ].filter(Boolean);
 
@@ -61,26 +61,36 @@ function resolveChromeExecutablePath() {
         continue;
       }
 
-      // directories like: linux-123456, linux-124000...
-      const linuxDirs = fs
+      // directories like: linux-123456, win64-123456...
+      const platformDirs = fs
         .readdirSync(chromeRoot, { withFileTypes: true })
-        .filter((d) => d.isDirectory() && d.name.startsWith("linux-"))
+        .filter((d) => d.isDirectory() && (d.name.startsWith("linux-") || d.name.startsWith("win")))
         .map((d) => d.name)
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 
-      console.log(`📁 Found linux-* in ${chromeRoot}:`, linuxDirs);
+      console.log(`📁 Found platform dirs in ${chromeRoot}:`, platformDirs);
 
-      for (const d of linuxDirs) {
+      for (const d of platformDirs) {
         const baseDir = path.join(chromeRoot, d);
 
-        const possibleExes = [
-          // Puppeteer 20+ typically
-          path.join(baseDir, "chrome-linux64", "chrome"),
-          // older layouts
-          path.join(baseDir, "chrome-linux", "chrome"),
-          // rare layout fallback
-          path.join(baseDir, "chrome"),
-        ];
+        const possibleExes = [];
+        if (d.startsWith("linux-")) {
+          possibleExes.push(
+            // Puppeteer 20+ typically
+            path.join(baseDir, "chrome-linux64", "chrome"),
+            // older layouts
+            path.join(baseDir, "chrome-linux", "chrome"),
+            // rare layout fallback
+            path.join(baseDir, "chrome")
+          );
+        } else if (d.startsWith("win")) {
+          possibleExes.push(
+            // Windows Chrome (Puppeteer v24+ structure)
+            path.join(baseDir, "chrome-win64", "chrome.exe"),
+            // Fallback: older structure
+            path.join(baseDir, "chrome.exe")
+          );
+        }
 
         for (const exe of possibleExes) {
           if (exists(exe)) {
@@ -94,15 +104,24 @@ function resolveChromeExecutablePath() {
     }
   }
 
-  // 3) System Chrome/Chromium (if you install chromium package)
-  const commonLinuxPaths = [
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/chromium",
-  ];
+  // 3) System Chrome/Chromium
+  const systemPaths = [];
+  if (process.platform === "win32") {
+    systemPaths.push(
+      "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+      "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe"
+    );
+  } else {
+    systemPaths.push(
+      "/usr/bin/google-chrome",
+      "/usr/bin/google-chrome-stable",
+      "/usr/bin/chromium-browser",
+      "/usr/bin/chromium"
+    );
+  }
 
-  for (const p of commonLinuxPaths) {
+  for (const p of systemPaths) {
     if (exists(p)) {
       console.log(`✅ Found system Chrome/Chromium: ${p}`);
       return p;
@@ -170,8 +189,6 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
-        "--no-zygote",
-        "--single-process",
       ],
     });
   } catch (err) {

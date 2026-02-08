@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     data: {
                         full_name: fullName,
                     },
-                    emailRedirectTo: `${window.location.origin}/auth/callback`,
+                    emailRedirectTo: `http://localhost:5173/auth/callback`,
                 },
             });
             return { error };
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider,
                 options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
+                    redirectTo: `http://localhost:5173/auth/callback`,
                 },
             });
             return { error };
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const resetPassword = async (email: string) => {
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/reset-password`,
+                redirectTo: `http://localhost:5173/reset-password`,
             });
             return { error };
         } catch (error) {

@@ -16,7 +16,7 @@ const app = express();
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://genvideo-j52l.onrender.com"], // frontend
+    origin: ["http://localhost:5173"], // frontend
     methods: ["GET", "POST"],
     credentials: true,
   })

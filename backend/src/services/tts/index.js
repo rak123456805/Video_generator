@@ -1,21 +1,34 @@
-/* src/services/tts/index.js - Edge TTS using Python module */
+/* src/services/tts/index.js - Robust Edge TTS using Python tool with chunking */
 
 import { exec } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
 import path from "path";
+import { TTS_LANGUAGES } from "./voices.js";
 
 const execAsync = promisify(exec);
 
-const VOICES = {
-    en: "en-IN-NeerjaNeural",
-    hi: "hi-IN-SwaraNeural",
-    kn: "kn-IN-GaganNeural",
-    ta: "ta-IN-PallaviNeural",
-    te: "te-IN-ShrutiNeural",
-    ml: "ml-IN-SobhanaNeural",
-    bn: "bn-IN-TanishaaNeural",
-    mr: "mr-IN-AarohiNeural",
+/**
+ * Split text into chunks based on sentences to stay within service limits
+ * and prevent timeouts.
+ */
+const splitText = (text, maxLength = 3000) => {
+    const chunks = [];
+    let current = "";
+    // Split by common sentence endings and include the delimiter
+    const sentences = text.split(/(?<=[.!?।])\s+/);
+
+    for (const sentence of sentences) {
+        if ((current + sentence).length > maxLength) {
+            if (current.trim()) chunks.push(current.trim());
+            current = sentence;
+        } else {
+            current += (current ? " " : "") + sentence;
+        }
+    }
+
+    if (current.trim()) chunks.push(current.trim());
+    return chunks;
 };
 
 export const generateSpeech = async (text, outputFile, language = "en") => {
@@ -29,83 +42,77 @@ export const generateSpeech = async (text, outputFile, language = "en") => {
         fs.unlinkSync(outputPath);
     }
 
-    const voice = VOICES[language] || VOICES.en;
-    console.log("🎙 Generating speech using Edge-TTS...");
+    const langConfig = TTS_LANGUAGES.find(v => v.code === language) ||
+        TTS_LANGUAGES.find(v => v.code === "en");
+    const voice = langConfig.voice;
+
+    console.log("🎙 Generating speech using Edge-TTS (Python CLI + Chunking)...");
     console.log(`🌐 Language: ${language} (${voice})`);
 
-    const tempTextFile = path.join(outputDir, `temp_${Date.now()}.txt`);
-    fs.writeFileSync(tempTextFile, text, "utf-8");
+    const chunks = splitText(text);
+    console.log(`🔊 Total Chunks to process: ${chunks.length} (Text length: ${text.length} chars)`);
+
+    const pythonCommand = process.platform === "win32" ? "python" : "python3";
+    const chunkFiles = [];
 
     try {
-        // Platform check: Linux/Mac usually use 'python3', Windows uses 'python'
-        const pythonCommand = process.platform === "win32" ? "python" : "python3";
+        for (let i = 0; i < chunks.length; i++) {
+            console.log(`   ▶️ Generating chunk ${i + 1}/${chunks.length}`);
+            const chunkPath = path.join(outputDir, `chunk_${Date.now()}_${i}.mp3`);
+            chunkFiles.push(chunkPath);
 
-        // Use python -m edge_tts
-        const command = `${pythonCommand} -m edge_tts --voice "${voice}" --file "${tempTextFile}" --write-media "${outputPath}"`;
+            // Use escaped text for CLI or temp file? 
+            // Better to use a temp text file for each chunk to avoid CLI length limits/escaping issues
+            const tempTextFile = path.join(outputDir, `temp_chunk_${Date.now()}_${i}.txt`);
+            fs.writeFileSync(tempTextFile, chunks[i], "utf-8");
 
-        console.log(`🔊 Running Edge-TTS via ${pythonCommand}... (Text length: ${text.length} chars)`);
-        const { stdout, stderr } = await execAsync(command, {
-            maxBuffer: 50 * 1024 * 1024,
-            timeout: 1200000 // 20 minutes timeout for long audio
-        });
+            try {
+                const command = `${pythonCommand} -m edge_tts --voice "${voice}" --file "${tempTextFile}" --write-media "${chunkPath}"`;
+                await execAsync(command, { timeout: 300000 }); // 5 mins per chunk max
+            } finally {
+                if (fs.existsSync(tempTextFile)) fs.unlinkSync(tempTextFile);
+            }
 
-        if (stderr && !stderr.includes("INFO") && !stderr.includes("edge_tts")) {
-            console.warn("⚠️ Edge-TTS warnings:", stderr);
+            if (!fs.existsSync(chunkPath) || fs.statSync(chunkPath).size < 100) {
+                throw new Error(`Failed to generate audio for chunk ${i + 1}`);
+            }
         }
 
-        // Clean up temp file
-        if (fs.existsSync(tempTextFile)) {
-            fs.unlinkSync(tempTextFile);
+        console.log("🔗 Merging chunks using FFmpeg...");
+
+        // Create a concat list for FFmpeg
+        const listFilePath = path.join(outputDir, `concat_list_${Date.now()}.txt`);
+        const listContent = chunkFiles.map(f => `file '${f.replace(/\\/g, "/")}'`).join("\n");
+        fs.writeFileSync(listFilePath, listContent, "utf-8");
+
+        try {
+            const mergeCommand = `ffmpeg -y -f concat -safe 0 -i "${listFilePath}" -c copy "${outputPath}"`;
+            await execAsync(mergeCommand);
+        } finally {
+            if (fs.existsSync(listFilePath)) fs.unlinkSync(listFilePath);
+        }
+
+        // Clean up chunks
+        for (const file of chunkFiles) {
+            if (fs.existsSync(file)) fs.unlinkSync(file);
         }
 
         if (!fs.existsSync(outputPath)) {
-            throw new Error("Audio file was not created");
+            throw new Error("Final audio file was not created");
         }
 
         const size = fs.statSync(outputPath).size;
-        if (size < 1000) {
-            throw new Error("Generated audio file is too small");
-        }
-
-        console.log("✅ Audio generated successfully!");
-        console.log(`🎧 File size: ${(size / 1024).toFixed(2)} KB`);
+        console.log("✅ Audio generated and merged successfully!");
+        console.log(`🎧 Final size: ${(size / 1024).toFixed(2)} KB`);
 
         return outputPath;
 
     } catch (error) {
-        if (fs.existsSync(tempTextFile)) {
-            fs.unlinkSync(tempTextFile);
+        // Cleanup on error
+        for (const file of chunkFiles) {
+            if (fs.existsSync(file)) fs.unlinkSync(file);
         }
-
-        console.error("❌ Edge-TTS Error Details:", {
-            message: error.message,
-            stderr: error.stderr,
-            stdout: error.stdout,
-            signal: error.signal,
-            code: error.code
-        });
-
-        // Check for timeout
-        if (error.signal === 'SIGTERM') {
-            throw new Error("Edge-TTS timed out. The text might be too long for a single request. Please try a shorter duration.");
-        }
-
-        // Check for specific "command not found" indicators
-        const isCommandNotFound =
-            (error.message && error.message.includes("not recognized")) || // Windows
-            (error.message && error.message.includes("command not found")) || // Unix
-            (error.code === 'ENOENT'); // Node internal
-
-        if (isCommandNotFound) {
-            throw new Error("Python is not installed or not in PATH. Please install Python 3.7+ and edge-tts: pip install edge-tts");
-        }
-
-        if (error.message && error.message.includes("No module named")) {
-            throw new Error("edge-tts module not found. Please run: pip install edge-tts");
-        }
-
-        // Pass through the actual stderr if available, as it usually contains the specific python/lib error
-        const detailedError = error.stderr || error.message;
-        throw new Error(`Edge-TTS failed: ${detailedError}`);
+        console.error("❌ Edge-TTS Error:", error.message);
+        throw error;
     }
 };

@@ -5,7 +5,7 @@ import path from "path";
 
 const cacheDir =
     (process.env.PUPPETEER_CACHE_DIR && process.env.PUPPETEER_CACHE_DIR.trim()) ||
-    "/opt/render/project/src/backend/.cache/puppeteer";
+    path.join(process.env.USERPROFILE || "", ".cache", "puppeteer");
 
 console.log("🧩 Puppeteer runtime Chrome setup");
 console.log("📌 PUPPETEER_CACHE_DIR =", cacheDir);
@@ -19,18 +19,19 @@ function findChromeExecutable(base) {
         const chromeRoot = path.join(base, "chrome");
         if (!fs.existsSync(chromeRoot)) return null;
 
-        const linuxDirs = fs
+        const platformDirs = fs
             .readdirSync(chromeRoot, { withFileTypes: true })
-            .filter((d) => d.isDirectory() && d.name.startsWith("linux-"))
+            .filter((d) => d.isDirectory() && (d.name.startsWith("linux-") || d.name.startsWith("win")))
             .map((d) => d.name)
             .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 
-        for (const d of linuxDirs) {
+        for (const d of platformDirs) {
             const baseDir = path.join(chromeRoot, d);
             const candidates = [
                 path.join(baseDir, "chrome-linux64", "chrome"),
                 path.join(baseDir, "chrome-linux", "chrome"),
                 path.join(baseDir, "chrome"),
+                path.join(baseDir, "chrome.exe"), // Windows
             ];
             for (const c of candidates) {
                 if (fs.existsSync(c)) return c;

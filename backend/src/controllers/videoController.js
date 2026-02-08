@@ -9,6 +9,7 @@ import { generateSlides } from "../services/slideService.js";
 import { generateVideoFromSlides } from "../services/slideVideoService.js";
 import { getAudioDuration } from "../services/audioService.js";
 import { mergeVideoAndAudio } from "../services/videoMergeService.js";
+import { generateQuiz } from "../services/quizService.js";
 
 /* ---------------- UTILS ---------------- */
 
@@ -56,7 +57,23 @@ const processVideoGeneration = async ({
   /* -------- STEP 2: SLIDES -------- */
   // Pass the array directly. slideService > scriptToSlides handles the array.
   const slidePaths = await generateSlides(scriptSlides, slideFolder, language);
+
   if (!slidePaths.length) throw new Error("Slide rendering failed");
+
+  /* -------- STEP 2.5: QUIZ (Parallel preferred, but sequential for safety) -------- */
+  console.log("🧠 Generating quiz...");
+  let quizData = [];
+  try {
+    quizData = await generateQuiz({
+      topic,
+      scriptSlides,
+      language,
+      questionCount: 10
+    });
+  } catch (err) {
+    console.error("⚠️ Quiz generation failed (continuing video):", err.message);
+    // Don't fail the whole video if quiz fails
+  }
 
   /* -------- STEP 3: AUDIO -------- */
   // Concatenate narration for TTS
@@ -107,7 +124,9 @@ const processVideoGeneration = async ({
     finalVideo: `/generated/${finalVideo}`,
     part,
     duration,
-    scriptSlides, // Return script slides for quiz generation
+    duration,
+    scriptSlides,
+    quiz: quizData, // Return generated quiz
   };
 };
 
