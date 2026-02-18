@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 
 import videoRoutes from "./src/routes/videoRoutes.js";
 import quizRoutes from "./src/routes/quizRoutes.js";
+import { markInterruptedJobs } from "./src/services/jobStore.js";
 
 dotenv.config();
 
@@ -14,9 +15,14 @@ const app = express();
 
 /* ---------------- MIDDLEWARE ---------------- */
 
+// Allow configurable CORS origins for production deployment
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map(s => s.trim())
+  : ["http://localhost:5173"];
+
 app.use(
   cors({
-    origin: ["http://localhost:5173"], // frontend
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   })
@@ -65,6 +71,9 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Server Running on port ${PORT}`);
   console.log(`📂 Static files served from: ${generatedPath}`);
+
+  // Mark any interrupted jobs from previous server runs as failed
+  markInterruptedJobs();
 });
 
 // Nodemon restart trigger

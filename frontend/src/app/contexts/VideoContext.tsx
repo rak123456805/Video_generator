@@ -9,11 +9,22 @@ interface VideoData {
     hasNextPart: boolean;
     isFullCourse: boolean;
     timestamp: number;
+
     // Generation state
     isGenerating: boolean;
     progressStep: string | null;
     showSuggestion: boolean;
     generationStartTime: number | null;
+
+    // Job tracking
+    jobId: string | null;
+
+    // Per-component statuses
+    textStatus: string | null;
+    quizStatus: string | null;
+    slideStatus: string | null;
+    audioStatus: string | null;
+    videoStatus: string | null;
 
     // Quiz state
     quiz: any[] | null;
@@ -41,6 +52,12 @@ const defaultVideoData: VideoData = {
     progressStep: null,
     showSuggestion: false,
     generationStartTime: null,
+    jobId: null,
+    textStatus: null,
+    quizStatus: null,
+    slideStatus: null,
+    audioStatus: null,
+    videoStatus: null,
     quiz: null,
     showQuiz: false,
 };

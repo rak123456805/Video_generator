@@ -1,134 +1,8 @@
 /* src/controllers/videoController.js */
 
-import path from "path";
-import fs from "fs";
 import { analyzeTopicSize } from "../services/analysisService.js";
-import { generateAIScript } from "../services/scriptService.js";
-import { generateSpeech } from "../services/tts/index.js";
-import { generateSlides } from "../services/slideService.js";
-import { generateVideoFromSlides } from "../services/slideVideoService.js";
-import { getAudioDuration } from "../services/audioService.js";
-import { mergeVideoAndAudio } from "../services/videoMergeService.js";
-import { generateQuiz } from "../services/quizService.js";
-
-/* ---------------- UTILS ---------------- */
-
-const ensureFileExists = async (filePath, timeout = 120000) => {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    if (fs.existsSync(filePath) && fs.statSync(filePath).size > 1000) return true;
-    await new Promise(r => setTimeout(r, 2000));
-  }
-  return false;
-};
-
-/* ---------------- CORE GENERATOR ---------------- */
-
-const processVideoGeneration = async ({
-  topic,
-  duration,
-  mode,
-  part = 1,
-  language = "en",
-}) => {
-  const timestamp = Date.now();
-  const safeTopic = topic.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-
-  const slideFolder = `folder-${mode.toLowerCase()}-${safeTopic}-${language}-p${part}-${timestamp}`;
-  const audioFile = `audio-${mode.toLowerCase()}-${safeTopic}-${language}-p${part}-${timestamp}.mp3`;
-  const silentVideo = `silent-${timestamp}.mp4`;
-  const finalVideo = `${mode.toLowerCase()}-${safeTopic}-${language}-p${part}-final.mp4`;
-
-  console.log(`🎬 Starting video process: ${mode} - ${topic}`);
-
-  /* -------- STEP 1: SCRIPT (Returns Array of Slides) -------- */
-  const scriptSlides = await generateAIScript({
-    topic,
-    duration,
-    mode,
-    part,
-    language,
-  });
-
-  if (!scriptSlides || scriptSlides.length === 0) {
-    throw new Error("Script generation returned empty result");
-  }
-
-  /* -------- STEP 2: SLIDES -------- */
-  // Pass the array directly. slideService > scriptToSlides handles the array.
-  const slidePaths = await generateSlides(scriptSlides, slideFolder, language);
-
-  if (!slidePaths.length) throw new Error("Slide rendering failed");
-
-  /* -------- STEP 2.5: QUIZ (Parallel preferred, but sequential for safety) -------- */
-  console.log("🧠 Generating quiz...");
-  let quizData = [];
-  try {
-    quizData = await generateQuiz({
-      topic,
-      scriptSlides,
-      language,
-      questionCount: 10
-    });
-  } catch (err) {
-    console.error("⚠️ Quiz generation failed (continuing video):", err.message);
-    // Don't fail the whole video if quiz fails
-  }
-
-  /* -------- STEP 3: AUDIO -------- */
-  // Concatenate narration for TTS
-  const fullNarration = scriptSlides.map(s => s.narration).join("\n\n");
-
-  const audioPath = await generateSpeech(fullNarration, audioFile, language);
-  if (!(await ensureFileExists(audioPath))) {
-    throw new Error("Audio generation failed");
-  }
-
-  const audioDuration = await getAudioDuration(audioPath);
-
-  /* -------- STEP 4: TIMING -------- */
-  // Use the wordCount from the script JSON
-  const totalWords = scriptSlides.reduce((sum, s) => sum + (s.wordCount || 0), 0);
-
-  let accumulatedDuration = 0;
-  const slideDurations = scriptSlides.map((s, i) => {
-    // Last slide takes remaining time to avoid cut-off
-    if (i === scriptSlides.length - 1) {
-      return Math.max(3, audioDuration - accumulatedDuration);
-    }
-
-    // Proportional timing
-    const ratio = (s.wordCount || 0) / (totalWords || 1);
-    const duration = Math.max(3, audioDuration * ratio); // Min 3 seconds per slide
-    accumulatedDuration += duration;
-    return duration;
-  });
-
-  /* -------- STEP 5: VIDEO -------- */
-  const slideDirPath = path.join(process.cwd(), "generated", slideFolder);
-
-  const silentVideoPath = await generateVideoFromSlides(
-    slideDirPath,
-    silentVideo,
-    slideDurations
-  );
-
-  if (!(await ensureFileExists(silentVideoPath))) {
-    throw new Error("Silent video generation failed");
-  }
-
-  const finalOutputPath = path.join(process.cwd(), "generated", finalVideo);
-  await mergeVideoAndAudio(silentVideoPath, audioPath, finalOutputPath);
-
-  return {
-    finalVideo: `/generated/${finalVideo}`,
-    part,
-    duration,
-    duration,
-    scriptSlides,
-    quiz: quizData, // Return generated quiz
-  };
-};
+import { createJob, getJob } from "../services/jobStore.js";
+import { runPipeline } from "../services/pipelineService.js";
 
 /* ---------------- API HANDLERS ---------------- */
 
@@ -146,15 +20,17 @@ export const generateCrashCourse = async (req, res) => {
   try {
     const { topic, duration, language = "en" } = req.body;
 
-    const result = await processVideoGeneration({
-      topic,
-      duration,
-      mode: "CRASH",
-      part: 1,
-      language,
-    });
+    // Create job with metadata
+    const jobId = createJob({ topic, duration, mode: "CRASH", part: 1, language });
+    console.log(`📋 Job created: ${jobId} for crash course "${topic}"`);
 
-    res.json({ success: true, mode: "CRASH", ...result });
+    // Respond immediately
+    res.json({ success: true, jobId });
+
+    // Fire-and-forget: run pipeline in background
+    runPipeline({ topic, duration, mode: "CRASH", part: 1, language, jobId })
+      .catch(err => console.error(`❌ Pipeline error (should be handled internally): ${err.message}`));
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: err.message });
@@ -165,29 +41,102 @@ export const generateFullCoursePart = async (req, res) => {
   try {
     const { topic, duration, part = 1, language = "en" } = req.body;
 
-    // Re-check analysis to confirm total parts (optional, but good for returning metadata)
-    // We assume the frontend/user handles the flow, but we return 'hasNextPart' metadata
-    const analysis = await analyzeTopicSize(topic, duration);
-    const totalParts = analysis.estimatedParts || 1;
+    // Get analysis for totalParts metadata
+    let totalParts = 1;
+    try {
+      const analysis = await analyzeTopicSize(topic, duration);
+      totalParts = analysis.estimatedParts || 1;
+    } catch (e) {
+      console.warn("Analysis for parts count failed, defaulting to 1");
+    }
 
-    const result = await processVideoGeneration({
-      topic,
-      duration,
-      mode: "FULL",
-      part: Number(part),
-      language,
-    });
+    // Create job with metadata
+    const jobId = createJob({ topic, duration, mode: "FULL", part: Number(part), language, totalParts });
+    console.log(`📋 Job created: ${jobId} for full course "${topic}" part ${part}`);
+
+    // Respond immediately
+    res.json({ success: true, jobId, totalParts });
+
+    // Fire-and-forget: run pipeline in background
+    runPipeline({ topic, duration, mode: "FULL", part: Number(part), language, jobId })
+      .catch(err => console.error(`❌ Pipeline error (should be handled internally): ${err.message}`));
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* ---------------- JOB STATUS ENDPOINT ---------------- */
+
+export const getJobStatus = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = getJob(jobId);
+
+    if (!job) {
+      return res.status(404).json({ success: false, message: "Job not found" });
+    }
 
     res.json({
       success: true,
-      mode: "FULL",
-      ...result,
-      currentPart: Number(part),
-      totalParts: totalParts,
-      hasNextPart: Number(part) < totalParts,
+      jobId,
+      status: job.overall_status,
+      text_status: job.text_status,
+      quiz_status: job.quiz_status,
+      slide_status: job.slide_status,
+      audio_status: job.audio_status,
+      video_status: job.video_status,
+      progress: job.progress,
+      result: job.result,
+      error: job.error,
+      meta: job.meta,
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
     });
   } catch (err) {
-    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* ---------------- QUIZ BY JOB ID ENDPOINT ---------------- */
+
+export const getQuizByJobId = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = getJob(jobId);
+
+    if (!job) {
+      return res.status(404).json({ success: false, message: "Job not found" });
+    }
+
+    if (job.quiz_status === "completed" && job.result?.quiz) {
+      return res.json({
+        success: true,
+        jobId,
+        quiz_status: job.quiz_status,
+        questions: job.result.quiz,
+      });
+    }
+
+    if (job.quiz_status === "processing") {
+      return res.json({
+        success: true,
+        jobId,
+        quiz_status: "processing",
+        questions: null,
+      });
+    }
+
+    // Quiz failed or pending
+    return res.json({
+      success: true,
+      jobId,
+      quiz_status: job.quiz_status,
+      questions: null,
+      error: job.result?.quizError || null,
+    });
+  } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 };
