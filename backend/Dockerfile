@@ -3,7 +3,7 @@
 
 FROM node:20-slim
 
-# Install system dependencies for FFmpeg and Puppeteer
+# Install system dependencies for FFmpeg, Puppeteer, and Python (for edge-tts)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     chromium \
@@ -24,7 +24,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xdg-utils \
     wget \
     ca-certificates \
+    python3 \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
+
+# Install edge-tts Python package
+RUN pip3 install --no-cache-dir edge-tts --break-system-packages
 
 # Tell Puppeteer to use installed Chromium instead of downloading its own
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
