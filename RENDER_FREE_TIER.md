@@ -45,6 +45,7 @@ To prevent the 512MB RAM limit from crashing your app:
 1.  **Short Topics**: Start with "5 minute" or "Crash Course" modes. These use fewer slides and less memory.
 2.  **Wait for Cold Starts**: The Free tier takes about 50-90 seconds to "wake up" the first time you visit it. Be patient if the first request fails.
 3.  **One generation at a time**: Do not try to generate two videos simultaneously; the memory will definitely spike and crash.
+4.  **Sequential Mode**: I have optimized the backend to run Quiz → Slides → Audio one-by-one (Sequential) instead of all at once. This keeps the memory usage low enough for the Free Tier.
 
 ---
 
