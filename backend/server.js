@@ -16,14 +16,29 @@ const app = express();
 /* ---------------- MIDDLEWARE ---------------- */
 
 // Allow configurable CORS origins for production deployment
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(",").map(s => s.trim())
-  : ["http://localhost:5173"];
+const rawOrigins = process.env.CORS_ORIGINS || "http://localhost:5173";
+const allowedOrigins = rawOrigins.split(",").map(s => {
+  let origin = s.trim();
+  if (origin.endsWith("/")) origin = origin.slice(0, -1);
+  return origin;
+});
+
+console.log("🛠️ Allowed CORS Origins:", allowedOrigins);
 
 app.use(
   cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes("*")) {
+        callback(null, true);
+      } else {
+        console.warn(`🛑 CORS Blocked origin: ${origin}`);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "OPTIONS"],
     credentials: true,
   })
 );
