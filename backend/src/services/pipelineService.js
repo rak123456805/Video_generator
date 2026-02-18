@@ -70,93 +70,55 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         console.log(`✅ [${jobId}] Text generation completed (${scriptSlides.length} slides)`);
 
         /* ================================================================
-           STEP 2: PARALLEL — Quiz + Slides + Audio
-           All three start immediately after text completes.
+           STEP 2: SEQUENTIAL — Quiz -> Slides -> Audio
+           On 512MB Free instances (Render), we MUST run these sequentially
+           to avoid OOM (Out of Memory) crashes caused by running Puppeteer,
+           Python and FFmpeg simultaneously.
            ================================================================ */
 
-        // --- Quiz (non-critical: failure won't stop video) ---
-        const quizPromise = (async () => {
-            try {
-                updateJob(jobId, { quiz_status: "processing" });
-                console.log(`🧠 [${jobId}] Quiz generation started`);
-                const quizData = await generateQuiz({ topic, scriptSlides, language, questionCount: 10 });
-                updateJob(jobId, {
-                    quiz_status: "completed",
-                    result: { quiz: quizData },
-                });
-                console.log(`✅ [${jobId}] Quiz generation completed (${quizData.length} questions)`);
-                return quizData;
-            } catch (err) {
-                console.error(`⚠️ [${jobId}] Quiz generation failed (non-critical):`, err.message);
-                updateJob(jobId, {
-                    quiz_status: "failed",
-                    result: { quizError: err.message },
-                });
-                return [];
-            }
-        })();
+        // --- Quiz (non-critical) ---
+        let quizData = [];
+        try {
+            updateJob(jobId, { quiz_status: "processing", progress: "Generating quiz..." });
+            console.log(`🧠 [${jobId}] Quiz generation started`);
+            quizData = await generateQuiz({ topic, scriptSlides, language, questionCount: 10 });
+            updateJob(jobId, {
+                quiz_status: "completed",
+                result: { quiz: quizData },
+            });
+            console.log(`✅ [${jobId}] Quiz generation completed (${quizData.length} questions)`);
+        } catch (err) {
+            console.error(`⚠️ [${jobId}] Quiz generation failed (non-critical):`, err.message);
+            updateJob(jobId, {
+                quiz_status: "failed",
+                result: { quizError: err.message },
+            });
+        }
 
         // --- Slides (critical) ---
-        const slidePromise = (async () => {
-            try {
-                updateJob(jobId, { slide_status: "processing" });
-                console.log(`🖼️ [${jobId}] Slide generation started`);
-                const slidePaths = await generateSlides(scriptSlides, slideFolder, language);
-                if (!slidePaths.length) throw new Error("Slide rendering failed");
-                updateJob(jobId, {
-                    slide_status: "completed",
-                    result: { slideFolder },
-                });
-                console.log(`✅ [${jobId}] Slide generation completed (${slidePaths.length} slides)`);
-                return slidePaths;
-            } catch (err) {
-                console.error(`❌ [${jobId}] Slide generation failed:`, err.message);
-                updateJob(jobId, { slide_status: "failed" });
-                throw err;
-            }
-        })();
+        updateJob(jobId, { slide_status: "processing", progress: "Rendering slides..." });
+        console.log(`🖼️ [${jobId}] Slide generation started`);
+        const slidePaths = await generateSlides(scriptSlides, slideFolder, language);
+        if (!slidePaths.length) throw new Error("Slide rendering failed");
+        updateJob(jobId, {
+            slide_status: "completed",
+            result: { slideFolder },
+        });
+        console.log(`✅ [${jobId}] Slide generation completed (${slidePaths.length} slides)`);
 
         // --- Audio / TTS (critical) ---
-        const audioPromise = (async () => {
-            try {
-                updateJob(jobId, { audio_status: "processing" });
-                console.log(`🎙️ [${jobId}] Audio generation started`);
-                const fullNarration = scriptSlides.map(s => s.narration).join("\n\n");
-                const audioPath = await generateSpeech(fullNarration, audioFile, language);
-                if (!(await ensureFileExists(audioPath))) {
-                    throw new Error("Audio generation failed — file not found");
-                }
-                updateJob(jobId, {
-                    audio_status: "completed",
-                    result: { audioFile },
-                });
-                console.log(`✅ [${jobId}] Audio generation completed`);
-                return audioPath;
-            } catch (err) {
-                console.error(`❌ [${jobId}] Audio generation failed:`, err.message);
-                updateJob(jobId, { audio_status: "failed" });
-                throw err;
-            }
-        })();
-
-        // Wait for all three. Quiz uses allSettled (non-critical), slides+audio must succeed.
-        const [quizResult, slideResult, audioResult] = await Promise.allSettled([
-            quizPromise,
-            slidePromise,
-            audioPromise,
-        ]);
-
-        // Check critical failures
-        if (slideResult.status === "rejected") {
-            throw new Error("Slide generation failed: " + slideResult.reason?.message);
+        updateJob(jobId, { audio_status: "processing", progress: "Generating audio..." });
+        console.log(`🎙️ [${jobId}] Audio generation started`);
+        const fullNarration = scriptSlides.map(s => s.narration).join("\n\n");
+        const audioPath = await generateSpeech(fullNarration, audioFile, language);
+        if (!(await ensureFileExists(audioPath))) {
+            throw new Error("Audio generation failed — file not found");
         }
-        if (audioResult.status === "rejected") {
-            throw new Error("Audio generation failed: " + audioResult.reason?.message);
-        }
-
-        const slidePaths = slideResult.value;
-        const audioPath = audioResult.value;
-        const quizData = quizResult.status === "fulfilled" ? quizResult.value : [];
+        updateJob(jobId, {
+            audio_status: "completed",
+            result: { audioFile },
+        });
+        console.log(`✅ [${jobId}] Audio generation completed`);
 
         /* ================================================================
            STEP 3: VIDEO GENERATION (after slides + audio)
