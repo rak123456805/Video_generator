@@ -1,11 +1,5 @@
-import {
-  Video,
-  Mail,
-  Twitter,
-  Github,
-  Linkedin,
-  Heart,
-} from "lucide-react";
+import { motion } from 'motion/react';
+import { Mail, Twitter, Github, Linkedin, Sparkles, ArrowRight, Check } from 'lucide-react';
 
 interface FooterProps {
   onNavigate?: (page: string) => void;
@@ -15,179 +9,127 @@ export function Footer({ onNavigate }: FooterProps) {
   const currentYear = new Date().getFullYear();
 
   const footerLinks = {
-    product: [
-      { label: "Features", href: "#" },
-      { label: "Pricing", href: "#" },
-      { label: "API", href: "#" },
-      { label: "Documentation", href: "#" },
+    Company: [
+      { label: 'About Us', href: '#' },
+      { label: 'Contact Us', href: '#' },
+      { label: 'Pricing Policy', href: '#' },
+      { label: 'Blogs', href: '#' },
+      { label: 'Careers', href: '#' },
     ],
-    company: [
-      { label: "About Us", href: "#" },
-      { label: "Careers", href: "#" },
-      { label: "Blog", href: "#" },
-      { label: "Press", href: "#" },
+    Solutions: [
+      { label: 'AI Narration Engine', href: '#' },
+      { label: 'Automated Quizzes', href: '#' },
+      { label: 'Multi-language Engine', href: '#' },
+      { label: 'Course Analytics', href: '#' },
+      { label: 'LMS Integration', href: '#' },
     ],
-    resources: [
-      { label: "Community", href: "#" },
-      { label: "Help Center", href: "#" },
-      { label: "Tutorials", href: "#" },
-      { label: "Support", href: "#" },
-    ],
-    legal: [
-      { label: "Privacy Policy", href: "#" },
-      { label: "Terms of Service", href: "#" },
-      { label: "Cookie Policy", href: "#" },
-      { label: "Licenses", href: "#" },
+    Legal: [
+      { label: 'Privacy Policy', href: '#' },
+      { label: 'Terms & Conditions', href: '#' },
+      { label: 'Refund Policy', href: '#' },
+      { label: 'Data Protection (DPA)', href: '#' },
     ],
   };
 
-  const socialLinks = [
-    { icon: Twitter, href: "#", label: "Twitter" },
-    { icon: Github, href: "#", label: "GitHub" },
-    { icon: Linkedin, href: "#", label: "LinkedIn" },
-    { icon: Mail, href: "#", label: "Email" },
+  const socials = [
+    { icon: Linkedin, href: '#', label: 'LinkedIn' },
+    { icon: Twitter, href: '#', label: 'Twitter' },
+    { icon: Github, href: '#', label: 'GitHub' },
+    { icon: Mail, href: '#', label: 'Email' },
   ];
 
   return (
-    <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-      <div className="max-w-7xl mx-auto px-6 py-12">
-        {/* Main Footer Content */}
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-8 mb-12">
-          {/* Brand Section */}
-          <div className="col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-                <Video className="w-6 h-6 text-white" />
-              </div>
-              <span className="text-xl font-semibold text-gray-900 dark:text-white">
-                AI EduVideo
-              </span>
-            </div>
-            <p className="text-gray-600 dark:text-gray-400 mb-4 max-w-xs">
-              Transform your educational content into engaging
-              AI-powered video courses instantly.
+    <footer className="relative bg-black text-white overflow-hidden border-t border-purple-500/10">
+      {/* Glow ambient spots */}
+      <div className="absolute top-0 left-0 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl -translate-x-48 -translate-y-48 pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-96 h-96 bg-indigo-600/5 rounded-full blur-3xl translate-x-48 translate-y-48 pointer-events-none" />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-16 pb-12">
+        {/* Large VocalLabs-style CTA Banner */}
+        <div className="bg-gradient-to-r from-[#0f1724]/70 via-[#1f1b3a]/50 to-[#0b1020]/70 rounded-3xl p-8 md:p-14 text-center relative overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] mb-16">
+          <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl -translate-x-16 -translate-y-16" />
+          <div className="absolute bottom-0 right-0 w-40 h-40 bg-indigo-400/10 rounded-full blur-2xl translate-x-20 translate-y-20" />
+          <div className="relative z-10">
+            <h2 className="text-3xl md:text-5xl font-black mb-4 text-white">
+              Ready to launch your own AI video courses?
+            </h2>
+            <p className="text-lg md:text-xl text-slate-300 mb-8 max-w-2xl mx-auto font-normal">
+              Book a live demo and see how AI EduVideo generates complete courses in minutes.
             </p>
-            {/* Social Links */}
-            <div className="flex gap-3">
-              {socialLinks.map((social) => {
-                const Icon = social.icon;
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => onNavigate?.('signup')}
+              className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-[#301979] via-[#906AF3] to-[#6331E8] text-white font-bold text-lg rounded-xl shadow-[0_0_30px_rgba(144,106,243,0.5)] hover:shadow-[0_0_45px_rgba(144,106,243,0.8)] transition-all duration-300"
+            >
+              Get Started Free
+              <ArrowRight className="w-5 h-5 ml-1" />
+            </motion.button>
+          </div>
+        </div>
+
+        {/* Main Footer Columns */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-16">
+          {/* Brand */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-800 flex items-center justify-center shadow-lg">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-3xl font-black text-white tracking-tight">
+                AI<span className="gradient-text-purple">EduVideo</span>
+              </h3>
+            </div>
+            <p className="text-slate-400 text-sm leading-relaxed max-w-sm">
+              The AI video platform powering educators, platforms, and institutions worldwide. Rebrand it, create content, and publish seamlessly.
+            </p>
+
+            {/* Social Icons */}
+            <div className="flex gap-3 pt-2">
+              {socials.map((s) => {
+                const Icon = s.icon;
                 return (
-                  <a
-                    key={social.label}
-                    href={social.href}
-                    aria-label={social.label}
-                    className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-purple-100 dark:hover:bg-purple-900/30 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-all"
+                  <motion.a
+                    key={s.label}
+                    href={s.href}
+                    whileHover={{ scale: 1.1, y: -2 }}
+                    whileTap={{ scale: 0.95 }}
+                    aria-label={s.label}
+                    className="w-10 h-10 bg-white/5 hover:bg-purple-600/30 rounded-xl flex items-center justify-center text-slate-400 hover:text-white border border-white/10 hover:border-purple-500/40 transition-all duration-300"
                   >
-                    <Icon className="w-4 h-4" />
-                  </a>
+                    <Icon className="w-5 h-5" />
+                  </motion.a>
                 );
               })}
             </div>
           </div>
 
-          {/* Product Links */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
-              Product
-            </h3>
-            <ul className="space-y-3">
-              {footerLinks.product.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Company Links */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
-              Company
-            </h3>
-            <ul className="space-y-3">
-              {footerLinks.company.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Resources Links */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
-              Resources
-            </h3>
-            <ul className="space-y-3">
-              {footerLinks.resources.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Legal Links */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
-              Legal
-            </h3>
-            <ul className="space-y-3">
-              {footerLinks.legal.map((link) => (
-                <li key={link.label}>
-                  <a
-                    href={link.href}
-                    className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          {/* Links columns */}
+          {Object.entries(footerLinks).map(([section, links]) => (
+            <div key={section}>
+              <h4 className="text-sm font-bold uppercase tracking-wider text-slate-300 mb-6">{section}</h4>
+              <ul className="space-y-3.5">
+                {links.map((link) => (
+                  <li key={link.label}>
+                    <a
+                      href={link.href}
+                      className="text-sm text-slate-400 hover:text-purple-400 transition-colors duration-200"
+                    >
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
 
-        {/* Bottom Bar */}
-        <div className="pt-8 border-t border-gray-200 dark:border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
-            © {currentYear} AI EduVideo. Made with{" "}
-            <Heart className="w-4 h-4 text-red-500 fill-red-500" />{" "}
-            for educators.
-          </p>
-          <div className="flex flex-wrap gap-6">
-            <a
-              href="#"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-            >
-              Privacy
-            </a>
-            <a
-              href="#"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-            >
-              Terms
-            </a>
-            <a
-              href="#"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
-            >
-              Cookies
-            </a>
+        {/* Bottom Bar with Status Indicator */}
+        <div className="pt-8 border-t border-purple-500/10 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-slate-500">
+          <p>© {currentYear} AI EduVideo Inc. All rights reserved.</p>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>All Systems Operational (99.9% Uptime)</span>
           </div>
         </div>
       </div>

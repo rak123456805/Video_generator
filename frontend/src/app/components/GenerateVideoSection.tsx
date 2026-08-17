@@ -356,18 +356,23 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl">
+    <div className="max-w-4xl mx-auto bg-[#0f051d]/90 border border-purple-500/30 backdrop-blur-xl rounded-3xl p-8 shadow-[0_0_50px_rgba(124,58,237,0.2)] text-white">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <Sparkles className="w-6 h-6 text-purple-600" />
-          <h3 className="text-2xl font-bold text-gray-900 dark:text-white">AI Instructor</h3>
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-800 flex items-center justify-center shadow-lg">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-2xl font-bold text-white">AI Instructor</h3>
+            <p className="text-xs text-slate-400">Generate structured video lessons with AI narration</p>
+          </div>
         </div>
         {videoData.isGenerating && (
           <button
             onClick={handleStop}
-            className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600 font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-xs text-red-400 hover:text-red-300 font-semibold transition-colors"
           >
-            <XCircle className="w-4 h-4" /> Stop
+            <XCircle className="w-4 h-4" /> Stop Generation
           </button>
         )}
       </div>
@@ -376,14 +381,13 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        placeholder="Enter topic (e.g. CSS Box Model)"
+        placeholder="Enter your course topic or raw lecture script (e.g., Introduction to Neural Networks)..."
         disabled={videoData.isGenerating}
-        className="w-full h-32 p-4 rounded-xl border border-gray-300 dark:border-gray-600 
-                   focus:border-purple-500 focus:ring-2 focus:ring-purple-300 
-                   dark:focus:ring-purple-700 transition-all duration-300
-                   bg-white dark:bg-gray-900 text-gray-900 dark:text-white
-                   placeholder-gray-500 dark:placeholder-gray-400
-                   resize-none outline-none disabled:opacity-50"
+        className="w-full h-36 p-4 rounded-xl border border-purple-500/30 
+                   focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 
+                   transition-all duration-300
+                   bg-black/60 text-white placeholder-slate-500
+                   resize-none outline-none disabled:opacity-50 text-sm font-sans"
       />
 
       {/* Duration Select */}
@@ -393,12 +397,12 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
             key={d}
             onClick={() => setDuration(d)}
             disabled={videoData.isGenerating}
-            className={`p-3 rounded-xl transition-all duration-300 font-medium ${duration === d
-              ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg"
-              : "border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className={`p-3.5 rounded-xl transition-all duration-300 font-bold text-sm ${duration === d
+              ? "bg-gradient-to-r from-[#301979] via-[#906AF3] to-[#6331E8] text-white shadow-[0_0_20px_rgba(144,106,243,0.5)] border border-purple-400/50"
+              : "border border-purple-500/20 bg-black/40 text-slate-300 hover:bg-white/5 hover:border-purple-500/40"
               } disabled:opacity-50`}
           >
-            {d === "1" ? "1 Hour" : `${d} Minutes`}
+            {d === "1" ? "1 Hour Course" : `${d} Minutes Lesson`}
           </button>
         ))}
       </div>
@@ -409,24 +413,23 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
           disabled={videoData.isGenerating}
-          className="w-full mt-4 p-3.5 rounded-xl border border-gray-300 dark:border-gray-600
-                     focus:border-purple-500 focus:ring-2 focus:ring-purple-300 
-                     dark:focus:ring-purple-700 transition-all duration-300
-                     bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900
-                     text-gray-900 dark:text-white appearance-none cursor-pointer
-                     hover:border-purple-400 dark:hover:border-purple-500 outline-none
+          className="w-full mt-4 p-3.5 rounded-xl border border-purple-500/30
+                     focus:border-purple-400 focus:ring-2 focus:ring-purple-500/30 
+                     transition-all duration-300
+                     bg-black/60 text-white appearance-none cursor-pointer
+                     hover:border-purple-400 text-sm outline-none
                      disabled:opacity-50"
         >
-          <option value="en" className="dark:bg-gray-800">English</option>
-          <option value="hi" className="dark:bg-gray-800">Hindi</option>
-          <option value="kn" className="dark:bg-gray-800">Kannada</option>
-          <option value="ta" className="dark:bg-gray-800">Tamil</option>
-          <option value="te" className="dark:bg-gray-800">Telugu</option>
-          <option value="ml" className="dark:bg-gray-800">Malayalam</option>
-          <option value="bn" className="dark:bg-gray-800">Bengali</option>
-          <option value="mr" className="dark:bg-gray-800">Marathi</option>
+          <option value="en" className="bg-[#0f051d] text-white">English Narration</option>
+          <option value="hi" className="bg-[#0f051d] text-white">Hindi (हिंदी)</option>
+          <option value="kn" className="bg-[#0f051d] text-white">Kannada (ಕನ್ನಡ)</option>
+          <option value="ta" className="bg-[#0f051d] text-white">Tamil (தமிழ்)</option>
+          <option value="te" className="bg-[#0f051d] text-white">Telugu (తెలుగు)</option>
+          <option value="ml" className="bg-[#0f051d] text-white">Malayalam (മലയാളം)</option>
+          <option value="bn" className="bg-[#0f051d] text-white">Bengali (বাংলা)</option>
+          <option value="mr" className="bg-[#0f051d] text-white">Marathi (मराठी)</option>
         </select>
-        <ChevronRight className="absolute right-4 top-[calc(50%+8px)] -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none rotate-90" />
+        <ChevronRight className="absolute right-4 top-[calc(50%+8px)] -translate-y-1/2 w-4 h-4 text-purple-400 pointer-events-none rotate-90" />
       </div>
 
       {/* Multi-Step Progress Indicator */}
