@@ -84,39 +84,6 @@ function Counter({ target, suffix = '' }: { target: number; suffix?: string }) {
   return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
 }
 
-/* ── Floating Cookie Banner (VocalLabs Style) ── */
-function CookieNotice() {
-  const [visible, setVisible] = useState(true);
-  if (!visible) return null;
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 40, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 20 }}
-      transition={{ delay: 1.5, duration: 0.5 }}
-      className="fixed bottom-6 right-6 z-50 max-w-sm rounded-2xl p-4 backdrop-blur-xl bg-[#0f051d]/90 border border-purple-500/30 shadow-[0_10px_40px_rgba(0,0,0,0.6)] text-xs text-slate-300"
-    >
-      <p className="mb-3 leading-relaxed">
-        We use cookies to enhance your experience and analyze platform performance.{' '}
-        <a href="#" className="text-purple-400 underline hover:text-purple-300">Learn more</a>
-      </p>
-      <div className="flex items-center gap-2 justify-end">
-        <button
-          onClick={() => setVisible(false)}
-          className="px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-white/5 text-slate-400 hover:text-white transition-all"
-        >
-          Decline
-        </button>
-        <button
-          onClick={() => setVisible(false)}
-          className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-indigo-600 font-semibold text-white shadow-[0_0_15px_rgba(139,92,246,0.5)] hover:shadow-[0_0_20px_rgba(139,92,246,0.8)] transition-all"
-        >
-          Accept
-        </button>
-      </div>
-    </motion.div>
-  );
-}
 
 export function HomePage({ onNavigate }: HomePageProps) {
   const heroRef = useRef(null);
