@@ -571,12 +571,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
       </section>
 
       {/* ══════════════════════════════════════════════════════
-          7. FLOATING COOKIE NOTICE
-          ══════════════════════════════════════════════════════ */}
-      <CookieNotice />
-
-      {/* ══════════════════════════════════════════════════════
-          8. FOOTER
+          7. FOOTER
           ══════════════════════════════════════════════════════ */}
       <Footer onNavigate={onNavigate} />
     </div>

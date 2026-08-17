@@ -27,12 +27,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         // Get initial session
         dispatch(setLoading(true));
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUserState(session?.user ?? null);
-            dispatch(setUser(session?.user ?? null));
-            setLoadingState(false);
-        });
+        supabase.auth.getSession()
+            .then(({ data: { session } }) => {
+                setSession(session);
+                setUserState(session?.user ?? null);
+                dispatch(setUser(session?.user ?? null));
+                setLoadingState(false);
+            })
+            .catch((err) => {
+                console.warn('Auth session check warning:', err);
+                setLoadingState(false);
+            });
 
         // Listen for auth changes
         const {
