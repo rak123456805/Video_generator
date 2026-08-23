@@ -29,6 +29,11 @@ interface VideoData {
     // Quiz state
     quiz: any[] | null;
     showQuiz: boolean;
+
+    // Google Drive state
+    driveFileId?: string | null;
+    driveFileUrl?: string | null;
+    driveUploaded?: boolean;
 }
 
 interface VideoContextType {
@@ -60,6 +65,9 @@ const defaultVideoData: VideoData = {
     videoStatus: null,
     quiz: null,
     showQuiz: false,
+    driveFileId: null,
+    driveFileUrl: null,
+    driveUploaded: false,
 };
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);

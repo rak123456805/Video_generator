@@ -280,9 +280,59 @@ VITE_SUPABASE_URL=your_supabase_project_url          # Supabase project URL
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key        # Supabase anon key
 ```
 
-## 📝 License
+## ☁️ Google Drive Integration Setup
 
-MIT License - feel free to use this project for educational purposes.
+The app supports saving generated videos directly to each user's personal Google Drive in a folder named `TextToVideo`. Follow the steps below to configure Google Cloud Console and set up the integration.
+
+### 1. Google Cloud Project Setup
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2. Create a new project or select an existing one.
+3. Search for and enable the **Google Drive API**.
+4. Configure the **OAuth consent screen**:
+   - Select **External** user type.
+   - Fill in the App name, User support email, and Developer contact information.
+   - Under **Scopes**, click **Add or Remove Scopes** and add:
+     `https://www.googleapis.com/auth/drive.file` (access to files created/opened by the app)
+     `https://www.googleapis.com/auth/userinfo.email` (read user's email address)
+   - Add your test Google Account(s) under **Test Users** (crucial while in Testing status).
+5. Create **Credentials**:
+   - Click **Create Credentials** → **OAuth client ID**.
+   - Select **Web application** as application type.
+   - Add an **Authorized Redirect URI**:
+     - Local development: `http://localhost:5000/api/google-drive/callback`
+     - Production: `https://your-backend-domain.com/api/google-drive/callback`
+   - Save your **Client ID** and **Client Secret**.
+
+### 2. Encryption Key Generation
+We encrypt the refresh tokens before storing them in Supabase. Generate a 32-byte (64 character hex) key:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### 3. Backend Environment Variables
+Update `backend/.env` with your credentials:
+```env
+# Supabase Admin configuration (Required to verify user JWTs and write connection details)
+SUPABASE_URL=https://your-supabase-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Google Drive OAuth Config
+GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:5000/api/google-drive/callback
+GOOGLE_DRIVE_ENCRYPTION_KEY=your_generated_64_character_hex_key
+
+# App URLs for redirection post-auth
+FRONTEND_URL=http://localhost:5173
+CORS_ORIGINS=http://localhost:5173
+```
+
+### 4. Database Setup
+Create the required `google_drive_connections` table in your Supabase database by executing the SQL migration located at `supabase/migrations/20240101000000_create_google_drive_connections.sql` in the Supabase SQL editor.
+
+---
+
+## 📝 License
 
 ## 👨‍💻 Author
 

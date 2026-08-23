@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, useInView, AnimatePresence } from 'motion/react';
 import { DashboardNavbar } from './DashboardNavbar';
 import { DashboardSidebar } from './DashboardSidebar';
@@ -6,6 +6,7 @@ import { GenerateVideoSection } from './GenerateVideoSection';
 import { RecentVideos } from './RecentVideos';
 import { AnalyticsSection } from './AnalyticsSection';
 import { QuizSection } from './QuizSection';
+import { GoogleDriveSettings } from './GoogleDriveSettings';
 import {
   Video, TrendingUp, Clock, Calendar,
   Sparkles, ArrowUpRight, Zap, Users,
@@ -53,8 +54,27 @@ function StatCard({ icon: Icon, label, value, change, positive, delay = 0, accen
 }
 
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    // If returning from Google Drive OAuth callback, open settings tab
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const page = params.get('page');
+    if ((tab === 'settings' || params.has('drive_connected') || params.has('drive_error')) && page === 'dashboard') {
+      return 'settings';
+    }
+    return 'dashboard';
+  });
   const { videoData } = useVideo();
+
+  // Handle tab param changes from URL (e.g. after OAuth callback)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const page = params.get('page');
+    if ((tab === 'settings' || params.has('drive_connected') || params.has('drive_error')) && page === 'dashboard') {
+      setActiveTab('settings');
+    }
+  }, []);
 
   const stats = [
     { icon: Video, label: 'Videos Generated', value: '24', change: '+12%', positive: true, accent: '#8B5CF6' },
@@ -311,16 +331,27 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 <motion.div key="settings" variants={tabVariants} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.3 }} className="space-y-6">
                   <div>
                     <h1 className="text-3xl font-black text-white mb-1">Settings</h1>
-                    <p className="text-slate-400 text-sm">Manage your brand preferences and white-label options</p>
+                    <p className="text-slate-400 text-sm">Manage your storage, preferences, and integrations</p>
                   </div>
-                  <div className="rounded-3xl p-12 text-center bg-[#0d041c]/90 border border-purple-500/25 shadow-xl">
-                    <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-purple-500/10 border border-purple-500/30">
-                      <Sparkles className="w-8 h-8 text-purple-400" />
+
+                  {/* Storage section */}
+                  <div>
+                    <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Storage</h2>
+                    <GoogleDriveSettings />
+                  </div>
+
+                  {/* Branding section (existing placeholder) */}
+                  <div>
+                    <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Branding</h2>
+                    <div className="rounded-2xl p-8 text-center bg-[#0d041c]/90 border border-purple-500/25 shadow-xl">
+                      <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center bg-purple-500/10 border border-purple-500/30">
+                        <Sparkles className="w-7 h-7 text-purple-400" />
+                      </div>
+                      <h3 className="text-white font-bold text-lg mb-2">White-Label Branding</h3>
+                      <p className="text-slate-400 text-sm max-w-md mx-auto">
+                        Custom domain setup, brand logo upload, and custom color themes are available for enterprise partners.
+                      </p>
                     </div>
-                    <h3 className="text-white font-bold text-xl mb-2">White-Label Branding Settings</h3>
-                    <p className="text-slate-400 text-sm max-w-md mx-auto">
-                      Custom domain setup, brand logo upload, and custom color themes are available for enterprise partners.
-                    </p>
                   </div>
                 </motion.div>
               )}
