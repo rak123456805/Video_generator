@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Download, Share2, Clock, Calendar, X, Eye, MoreHorizontal, Sparkles } from 'lucide-react';
+import { Play, Download, Share2, Clock, Calendar, X, Eye, MoreHorizontal, Sparkles, HardDrive } from 'lucide-react';
 import { useVideo } from '../contexts/VideoContext';
 
 interface RecentVideosProps {
@@ -22,6 +22,8 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
     videoUrl: video.videoUrl,
     isGenerated: true,
     category: 'AI Generated',
+    driveFileUrl: video.driveFileUrl || null,
+    driveUploaded: video.driveUploaded || false,
   }));
 
   const mockVideos = [
@@ -213,14 +215,29 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
                   >
                     <Play className="w-3.5 h-3.5" /> Watch
                   </button>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    className="p-2 rounded-xl text-slate-500 hover:text-purple-400 transition-colors"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
-                  >
-                    <Download className="w-4 h-4" />
-                  </motion.button>
+                  {video.driveUploaded && video.driveFileUrl ? (
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => window.open(video.driveFileUrl || '', '_blank')}
+                      className="p-2 rounded-xl text-emerald-400 hover:text-emerald-300 transition-colors"
+                      style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)' }}
+                      title="Open in Google Drive"
+                    >
+                      <HardDrive className="w-4 h-4" />
+                    </motion.button>
+                  ) : (
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => video.videoUrl && window.open(video.videoUrl, '_blank')}
+                      className="p-2 rounded-xl text-slate-500 hover:text-purple-400 transition-colors"
+                      style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                      title="Download"
+                    >
+                      <Download className="w-4 h-4" />
+                    </motion.button>
+                  )}
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}

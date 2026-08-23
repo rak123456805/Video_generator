@@ -10,6 +10,12 @@ import { getAudioDuration } from "./audioService.js";
 import { mergeVideoAndAudio } from "./videoMergeService.js";
 import { generateQuiz } from "./quizService.js";
 import { updateJob } from "./jobStore.js";
+import { supabaseAdmin } from "../config/supabaseAdmin.js";
+import {
+  getAuthClientFromEncryptedToken,
+  getOrCreateTextToVideoFolder,
+  uploadVideoToDrive,
+} from "./googleDriveService.js";
 
 /* ---------- Helpers ---------- */
 
@@ -21,6 +27,79 @@ const ensureFileExists = async (filePath, timeout = 120000) => {
     }
     return false;
 };
+
+/* ---------- Google Drive Upload Helper ---------- */
+
+/**
+ * Attempts to upload the final video to the user's Google Drive.
+ * If the user has no Drive connection or any error occurs, it logs a warning
+ * and continues gracefully — the video stays available on the server.
+ *
+ * @param {string} userId       - Supabase user ID (may be null for anonymous)
+ * @param {string} finalOutputPath - absolute path to the merged video file
+ * @param {string} finalVideo   - filename (e.g. "crash-python-final.mp4")
+ * @param {string} jobId        - for logging
+ * @returns {{ driveFileId, driveFileUrl } | null}
+ */
+async function uploadToDriveIfConnected(userId, finalOutputPath, finalVideo, jobId) {
+    if (!userId) {
+        console.log(`ℹ️  [${jobId}] No userId — skipping Drive upload.`);
+        return null;
+    }
+
+    try {
+        // Check if user has a Drive connection
+        const { data: connection, error } = await supabaseAdmin
+            .from("google_drive_connections")
+            .select("encrypted_refresh_token, drive_folder_id, google_email")
+            .eq("user_id", userId)
+            .single();
+
+        if (error || !connection) {
+            console.log(`ℹ️  [${jobId}] No Google Drive connection for user ${userId} — skipping upload.`);
+            return null;
+        }
+
+        console.log(`☁️  [${jobId}] Uploading video to Google Drive for ${connection.google_email}...`);
+
+        // Build authenticated Drive client (refreshes access token internally)
+        const oauth2Client = await getAuthClientFromEncryptedToken(connection.encrypted_refresh_token);
+
+        // Reuse stored folder ID or recreate if needed
+        let folderId = connection.drive_folder_id;
+        if (!folderId) {
+            folderId = await getOrCreateTextToVideoFolder(oauth2Client);
+            // Update the stored folder ID
+            await supabaseAdmin
+                .from("google_drive_connections")
+                .update({ drive_folder_id: folderId, updated_at: new Date().toISOString() })
+                .eq("user_id", userId);
+        }
+
+        // Upload the video
+        const { driveFileId, driveFileUrl } = await uploadVideoToDrive(
+            oauth2Client,
+            folderId,
+            finalOutputPath,
+            finalVideo
+        );
+
+        console.log(`✅ [${jobId}] Drive upload complete: ${driveFileUrl}`);
+        return { driveFileId, driveFileUrl };
+
+    } catch (err) {
+        // Non-fatal: Drive upload failure should not fail the video generation
+        console.error(`⚠️  [${jobId}] Drive upload failed (non-critical):`, err.message);
+
+        // If it's a token error, mark the connection as requiring reconnect
+        if (err.message?.includes("invalid_grant") || err.message?.includes("Token has been expired")) {
+            console.warn(`⚠️  [${jobId}] Google Drive token expired for user ${userId}. User must reconnect.`);
+            // We don't delete the connection here — let status endpoint detect & report it
+        }
+
+        return null;
+    }
+}
 
 /* ---------- Pipeline Orchestrator ---------- */
 
@@ -36,8 +115,10 @@ const ensureFileExists = async (filePath, timeout = 120000) => {
  *               └────┬────┘
  *                    │
  *             video_generation  (after slides + audio)
+ *                    │
+ *             drive_upload      (after video, non-critical)
  */
-export async function runPipeline({ topic, duration, mode, part = 1, language = "en", jobId }) {
+export async function runPipeline({ topic, duration, mode, part = 1, language = "en", jobId, userId = null }) {
     const timestamp = Date.now();
     const safeTopic = topic.replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
 
@@ -161,21 +242,35 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         await mergeVideoAndAudio(silentVideoPath, audioPath, finalOutputPath);
 
         /* ================================================================
+           STEP 4: GOOGLE DRIVE UPLOAD (after video is merged)
+           Non-critical — failure does not affect video availability.
+           ================================================================ */
+        let driveResult = null;
+        if (userId) {
+            updateJob(jobId, { progress: "Uploading to Google Drive..." });
+            driveResult = await uploadToDriveIfConnected(userId, finalOutputPath, finalVideo, jobId);
+        }
+
+        /* ================================================================
            DONE
            ================================================================ */
         updateJob(jobId, {
             video_status: "completed",
             overall_status: "completed",
-            progress: "Video ready!",
+            progress: driveResult ? "Video ready and saved to Google Drive!" : "Video ready!",
             result: {
                 finalVideo: `/generated/${finalVideo}`,
                 part,
                 duration,
                 mode,
+                // Drive metadata (null if Drive not connected or upload failed)
+                driveFileId: driveResult?.driveFileId || null,
+                driveFileUrl: driveResult?.driveFileUrl || null,
+                driveUploaded: !!driveResult,
             },
         });
 
-        console.log(`🎉 [${jobId}] Pipeline completed successfully!`);
+        console.log(`🎉 [${jobId}] Pipeline completed successfully!${driveResult ? " (saved to Drive)" : ""}`);
 
     } catch (err) {
         console.error(`❌ [${jobId}] Pipeline failed:`, err.message);

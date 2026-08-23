@@ -13,6 +13,8 @@ import {
   Image,
   Mic,
   Video,
+  HardDrive,
+  ExternalLink,
 } from "lucide-react";
 import apiClient from "../../api/client";
 import { useVideo } from "../contexts/VideoContext";
@@ -133,6 +135,9 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
             slideStatus: "completed",
             audioStatus: "completed",
             videoStatus: "completed",
+            driveFileId: result.driveFileId || null,
+            driveFileUrl: result.driveFileUrl || null,
+            driveUploaded: result.driveUploaded || false,
             timestamp: Date.now(),
           });
 
@@ -148,6 +153,9 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
             hasNextPart: result.hasNextPart || false,
             currentPart: result.currentPart || result.part || 1,
             isFullCourse: result.mode === "FULL",
+            driveFileId: result.driveFileId || null,
+            driveFileUrl: result.driveFileUrl || null,
+            driveUploaded: result.driveUploaded || false,
             timestamp: Date.now(),
             isGenerating: false,
             progressStep: null,
@@ -566,6 +574,13 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
             />
           </div>
 
+          {videoData.driveUploaded && videoData.driveFileUrl && (
+            <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs font-semibold">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <span>Successfully saved to your Google Drive in the <strong className="text-white">TextToVideo</strong> folder!</span>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-4">
             {videoData.hasNextPart && (
               <button
@@ -577,15 +592,34 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
               </button>
             )}
 
-            <button
-              onClick={() => window.open(videoData.videoUrl || "", "_blank")}
-              className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-bold p-4 rounded-xl flex justify-center items-center gap-2 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all shadow-md"
-            >
-              <Download className="w-5 h-5" /> Download Lesson
-            </button>
+            {videoData.driveUploaded && videoData.driveFileUrl ? (
+              <button
+                onClick={() => window.open(videoData.driveFileUrl || "", "_blank")}
+                className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold p-4 rounded-xl flex justify-center items-center gap-2 transition-all shadow-lg hover:shadow-xl"
+              >
+                <HardDrive className="w-5 h-5" /> Open in Google Drive <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+              </button>
+            ) : (
+              <button
+                onClick={() => window.open(videoData.videoUrl || "", "_blank")}
+                className="flex-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-bold p-4 rounded-xl flex justify-center items-center gap-2 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all shadow-md"
+              >
+                <Download className="w-5 h-5" /> Download Lesson
+              </button>
+            )}
+
+            {videoData.driveUploaded && videoData.driveFileUrl && (
+              <button
+                onClick={() => window.open(videoData.videoUrl || "", "_blank")}
+                className="px-4 bg-gray-800 text-slate-300 font-semibold rounded-xl flex justify-center items-center gap-2 hover:bg-gray-700 transition-all border border-slate-700"
+                title="Download local copy"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            )}
 
             <button
-              onClick={() => setVideoData({ videoUrl: null, showSuggestion: false, isGenerating: false, jobId: null })}
+              onClick={() => setVideoData({ videoUrl: null, showSuggestion: false, isGenerating: false, jobId: null, driveFileId: null, driveFileUrl: null, driveUploaded: false })}
               className="sm:w-16 h-14 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex justify-center items-center hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-all"
               title="Create New"
             >

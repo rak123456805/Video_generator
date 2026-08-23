@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 
 import videoRoutes from "./src/routes/videoRoutes.js";
 import quizRoutes from "./src/routes/quizRoutes.js";
+import googleDriveRoutes from "./src/routes/googleDriveRoutes.js";
 import { markInterruptedJobs } from "./src/services/jobStore.js";
 
 dotenv.config();
@@ -38,7 +39,7 @@ app.use(
         callback(new Error("Not allowed by CORS"));
       }
     },
-    methods: ["GET", "POST", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
@@ -73,6 +74,7 @@ app.use("/generated", express.static(generatedPath));
 
 app.use("/api/video", videoRoutes);
 app.use("/api/quiz", quizRoutes);
+app.use("/api/google-drive", googleDriveRoutes);
 
 /* ---------------- HEALTH CHECK ---------------- */
 

@@ -20,15 +20,18 @@ export const generateCrashCourse = async (req, res) => {
   try {
     const { topic, duration, language = "en" } = req.body;
 
-    // Create job with metadata
-    const jobId = createJob({ topic, duration, mode: "CRASH", part: 1, language });
-    console.log(`📋 Job created: ${jobId} for crash course "${topic}"`);
+    // req.user is set by authenticateOptional middleware (null if not authenticated)
+    const userId = req.user?.id || null;
+
+    // Create job with metadata — userId included for Drive upload
+    const jobId = createJob({ topic, duration, mode: "CRASH", part: 1, language, userId });
+    console.log(`📋 Job created: ${jobId} for crash course "${topic}" (userId: ${userId || "anonymous"})`);
 
     // Respond immediately
     res.json({ success: true, jobId });
 
     // Fire-and-forget: run pipeline in background
-    runPipeline({ topic, duration, mode: "CRASH", part: 1, language, jobId })
+    runPipeline({ topic, duration, mode: "CRASH", part: 1, language, jobId, userId })
       .catch(err => console.error(`❌ Pipeline error (should be handled internally): ${err.message}`));
 
   } catch (err) {
@@ -41,6 +44,9 @@ export const generateFullCoursePart = async (req, res) => {
   try {
     const { topic, duration, part = 1, language = "en" } = req.body;
 
+    // req.user is set by authenticateOptional middleware (null if not authenticated)
+    const userId = req.user?.id || null;
+
     // Get analysis for totalParts metadata
     let totalParts = 1;
     try {
@@ -50,15 +56,15 @@ export const generateFullCoursePart = async (req, res) => {
       console.warn("Analysis for parts count failed, defaulting to 1");
     }
 
-    // Create job with metadata
-    const jobId = createJob({ topic, duration, mode: "FULL", part: Number(part), language, totalParts });
-    console.log(`📋 Job created: ${jobId} for full course "${topic}" part ${part}`);
+    // Create job with metadata — userId included for Drive upload
+    const jobId = createJob({ topic, duration, mode: "FULL", part: Number(part), language, totalParts, userId });
+    console.log(`📋 Job created: ${jobId} for full course "${topic}" part ${part} (userId: ${userId || "anonymous"})`);
 
     // Respond immediately
     res.json({ success: true, jobId, totalParts });
 
     // Fire-and-forget: run pipeline in background
-    runPipeline({ topic, duration, mode: "FULL", part: Number(part), language, jobId })
+    runPipeline({ topic, duration, mode: "FULL", part: Number(part), language, jobId, userId })
       .catch(err => console.error(`❌ Pipeline error (should be handled internally): ${err.message}`));
 
   } catch (err) {

@@ -8,6 +8,7 @@ import {
   getJobStatus,
   getQuizByJobId,
 } from "../controllers/videoController.js";
+import { authenticateOptional } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
@@ -20,14 +21,17 @@ router.post("/analyze", analyzeTopic);
 /**
  * POST /crash-course
  * Generate a concise summary video (async — returns jobId).
+ * Optional auth: if a valid Supabase token is present, userId is attached
+ * so the pipeline can auto-upload to the user's Google Drive.
  */
-router.post("/crash-course", generateCrashCourse);
+router.post("/crash-course", authenticateOptional, generateCrashCourse);
 
 /**
  * POST /full-course/part
  * Generate a specific part of a detailed course series (async — returns jobId).
+ * Optional auth: same Drive upload behavior as crash-course.
  */
-router.post("/full-course/part", generateFullCoursePart);
+router.post("/full-course/part", authenticateOptional, generateFullCoursePart);
 
 /**
  * GET /status/:jobId
