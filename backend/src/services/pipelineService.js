@@ -76,16 +76,32 @@ async function uploadToDriveIfConnected(userId, finalOutputPath, finalVideo, job
                 .eq("user_id", userId);
         }
 
-        // Upload the video
-        const { driveFileId, driveFileUrl } = await uploadVideoToDrive(
-            oauth2Client,
-            folderId,
-            finalOutputPath,
-            finalVideo
-        );
+        // Upload the video with retries (robust against transient network/SSL drops)
+        let driveResult = null;
+        const maxRetries = 3;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                driveResult = await uploadVideoToDrive(
+                    oauth2Client,
+                    folderId,
+                    finalOutputPath,
+                    finalVideo
+                );
+                break; // Success! Exit loop.
+            } catch (uploadErr) {
+                console.warn(`⚠️  [${jobId}] Drive upload attempt ${attempt}/${maxRetries} failed: ${uploadErr.message}`);
+                if (attempt === maxRetries) {
+                    throw uploadErr; // Exhausted all retries, throw the error
+                }
+                // Wait before retrying (2s, 4s)
+                const delay = attempt * 2000;
+                console.log(`⏳ Retrying Drive upload in ${delay / 1000}s...`);
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
 
-        console.log(`✅ [${jobId}] Drive upload complete: ${driveFileUrl}`);
-        return { driveFileId, driveFileUrl };
+        console.log(`✅ [${jobId}] Drive upload complete: ${driveResult.driveFileUrl}`);
+        return { driveFileId: driveResult.driveFileId, driveFileUrl: driveResult.driveFileUrl };
 
     } catch (err) {
         // Non-fatal: Drive upload failure should not fail the video generation
