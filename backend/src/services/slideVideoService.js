@@ -2,7 +2,7 @@
 
 import path from "path";
 import fs from "fs";
-import ffmpeg from "fluent-ffmpeg";
+import ffmpeg from "../config/ffmpeg.js";
 
 export const generateVideoFromSlides = async (
   slideDirPath,

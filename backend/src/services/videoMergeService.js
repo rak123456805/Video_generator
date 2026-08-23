@@ -3,6 +3,7 @@
 import { exec } from "child_process";
 import path from "path";
 import fs from "fs";
+import ffmpegPath from "ffmpeg-static";
 
 export const mergeVideoAndAudio = (
   silentVideoPath,
@@ -26,7 +27,7 @@ export const mergeVideoAndAudio = (
      * - No deprecated flags
      */
     const ffmpegCmd = [
-      `ffmpeg -y`,
+      `"${ffmpegPath}" -y`,
       `-i "${silentVideoPath}"`,
       `-i "${audioPath}"`,
       `-map 0:v:0`,
