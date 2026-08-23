@@ -52,7 +52,7 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
 
   // Local form state
   const [text, setText] = useState(videoData.topic || "");
-  const [duration, setDuration] = useState(videoData.isFullCourse ? "1" : "15");
+  const [duration, setDuration] = useState(videoData.isFullCourse ? "15" : "5");
   const [language, setLanguage] = useState(videoData.language || "en");
 
   // Polling ref
@@ -71,7 +71,7 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
     };
   }, []);
 
-  const backendDuration = duration === "1" ? "1hr" : `${duration}min`;
+  const backendDuration = `${duration}min`;
   const BASE_URL = (import.meta as any).env.VITE_API_URL || "http://localhost:5000";
 
   const buildVideoUrl = (path: string) => `${BASE_URL}${path}`;
@@ -400,7 +400,7 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
 
       {/* Duration Select */}
       <div className="grid grid-cols-3 gap-3 mt-4">
-        {["15", "30", "1"].map((d) => (
+        {["5", "10", "15"].map((d) => (
           <button
             key={d}
             onClick={() => setDuration(d)}
@@ -410,7 +410,7 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
               : "border border-purple-500/20 bg-black/40 text-slate-300 hover:bg-white/5 hover:border-purple-500/40"
               } disabled:opacity-50`}
           >
-            {d === "1" ? "1 Hour Course" : `${d} Minutes Lesson`}
+            {`${d} Minutes Lesson`}
           </button>
         ))}
       </div>

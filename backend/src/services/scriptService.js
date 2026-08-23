@@ -16,9 +16,9 @@ const genAI = new GoogleGenerativeAI(API_KEY || "");
 /* ---------------- WORD TARGETS ---------------- */
 
 const MIN_WORDS = {
+  "5min": 750,
+  "10min": 1500,
   "15min": 2250,
-  "30min": 4500,
-  "1hr": 9000,
 };
 
 /* ---------------- PROMPT BUILDER ---------------- */

@@ -115,9 +115,9 @@ export function AnalyticsSection() {
           <h3 className="text-white font-bold mb-5">Popular Durations</h3>
           <div className="space-y-4">
             {[
-              { label: '30 minutes', count: 12, pct: 50 },
-              { label: '1 hour', count: 8, pct: 33 },
-              { label: '15 minutes', count: 4, pct: 17 },
+              { label: '10 minutes', count: 12, pct: 50 },
+              { label: '15 minutes', count: 8, pct: 33 },
+              { label: '5 minutes', count: 4, pct: 17 },
             ].map((s, i) => (
               <div key={i}>
                 <div className="flex items-center justify-between mb-1.5">
