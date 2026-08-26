@@ -340,17 +340,41 @@ export async function streamVideo(req, res) {
     // Build the authorized client
     const oauth2Client = await getAuthClientFromEncryptedToken(connection.encrypted_refresh_token);
 
-    // Get the read stream from Google Drive
-    const stream = await downloadFileAsStream(oauth2Client, fileId);
+    // Get the read stream from Google Drive (with range header support)
+    const driveRes = await downloadFileAsStream(oauth2Client, fileId, req.headers.range);
 
-    // Set headers
-    res.setHeader("Content-Type", "video/mp4");
-    
-    // Pipe to response
+    // Forward status code from Google Drive (e.g. 206 Partial Content or 200 OK)
+    res.status(driveRes.status);
+
+    // Forward essential streaming/content headers
+    const headersToForward = [
+      "content-type",
+      "content-length",
+      "content-range",
+      "accept-ranges",
+      "cache-control"
+    ];
+
+    headersToForward.forEach((h) => {
+      if (driveRes.headers[h]) {
+        res.setHeader(h, driveRes.headers[h]);
+      }
+    });
+
+    const stream = driveRes.data;
+
+    // Handle stream errors
     stream.on("error", (err) => {
       console.error("❌ Drive stream error:", err.message);
       if (!res.headersSent) {
         res.status(500).send("Streaming failed.");
+      }
+    });
+
+    // Close Google Drive stream if the client closes the connection early
+    req.on("close", () => {
+      if (stream && typeof stream.destroy === "function") {
+        stream.destroy();
       }
     });
 

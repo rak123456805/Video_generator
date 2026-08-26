@@ -162,13 +162,17 @@ export async function listVideosInDrive(oauth2Client, folderId) {
  * @param {object} oauth2Client — authenticated OAuth2 client
  * @param {string} fileId — Google Drive file ID
  */
-export async function downloadFileAsStream(oauth2Client, fileId) {
+export async function downloadFileAsStream(oauth2Client, fileId, rangeHeader = null) {
   const drive = google.drive({ version: "v3", auth: oauth2Client });
+  const requestOptions = { responseType: "stream" };
+  if (rangeHeader) {
+    requestOptions.headers = { Range: rangeHeader };
+  }
   const res = await drive.files.get(
     { fileId, alt: "media" },
-    { responseType: "stream" }
+    requestOptions
   );
-  return res.data;
+  return res;
 }
 
 /**
