@@ -112,7 +112,13 @@ export function Footer({ onNavigate }: FooterProps) {
                 {links.map((link) => (
                   <li key={link.label}>
                     <a
-                      href={link.href}
+                      href={link.label === 'Privacy Policy' ? '/privacy' : link.href}
+                      onClick={(e) => {
+                        if (link.label === 'Privacy Policy' && onNavigate) {
+                          e.preventDefault();
+                          onNavigate('privacy');
+                        }
+                      }}
                       className="text-sm text-slate-400 hover:text-purple-400 transition-colors duration-200"
                     >
                       {link.label}
