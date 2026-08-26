@@ -7,6 +7,7 @@ import {
   generateFullCoursePart,
   getJobStatus,
   getQuizByJobId,
+  listVideos,
 } from "../controllers/videoController.js";
 import { authenticateOptional } from "../middleware/authMiddleware.js";
 
@@ -44,5 +45,11 @@ router.get("/status/:jobId", getJobStatus);
  * Fetch the quiz for a job (read-only — never regenerates).
  */
 router.get("/quiz/:jobId", getQuizByJobId);
+
+/**
+ * GET /list
+ * Return completed video jobs for the authenticated user (or anonymous if not logged in).
+ */
+router.get("/list", authenticateOptional, listVideos);
 
 export default router;

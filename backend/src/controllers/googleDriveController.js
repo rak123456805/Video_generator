@@ -173,14 +173,14 @@ export async function driveCallback(req, res) {
         return res.redirect(`${settingsUrl}&drive_connected=1`);
       }
 
-      // No existing connection and no refresh token — this shouldn't happen with prompt=consent
+      // No existing connection and no refresh token
       return res.redirect(`${settingsUrl}&drive_error=no_refresh_token`);
     }
 
     // Set credentials to get user info
     oauth2Client.setCredentials(tokens);
 
-    // Get Google account email
+    // Get Google account email that was actually authorized
     const oauth2Api = getGoogleOAuth2Api(oauth2Client);
     const userInfoRes = await oauth2Api.userinfo.get();
     const googleEmail = userInfoRes.data.email;

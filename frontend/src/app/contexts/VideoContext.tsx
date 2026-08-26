@@ -34,6 +34,7 @@ interface VideoData {
     driveFileId?: string | null;
     driveFileUrl?: string | null;
     driveUploaded?: boolean;
+    userId?: string | null;
 }
 
 interface VideoContextType {
@@ -68,6 +69,7 @@ const defaultVideoData: VideoData = {
     driveFileId: null,
     driveFileUrl: null,
     driveUploaded: false,
+    userId: null,
 };
 
 const VideoContext = createContext<VideoContextType | undefined>(undefined);

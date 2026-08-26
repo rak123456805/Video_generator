@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import apiClient from "../../api/client";
 import { useVideo } from "../contexts/VideoContext";
+import { useAuth } from "../contexts/AuthContext";
 
 interface GenerateVideoSectionProps {
   onScriptGenerated?: (topic: string, language: string, scriptSlides: any[]) => void;
@@ -49,6 +50,8 @@ function StepLabel({ label, status, icon: Icon }: { label: string; status: strin
 
 export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSectionProps = {}) {
   const { videoData, setVideoData, addToRecentVideos } = useVideo();
+  const { user } = useAuth();
+  const userId = user?.id || null;
 
   // Local form state
   const [text, setText] = useState(videoData.topic || "");
@@ -139,6 +142,7 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
             driveFileUrl: result.driveFileUrl || null,
             driveUploaded: result.driveUploaded || false,
             timestamp: Date.now(),
+            userId,
           });
 
           addToRecentVideos({
@@ -166,6 +170,7 @@ export function GenerateVideoSection({ onScriptGenerated }: GenerateVideoSection
             slideStatus: null,
             audioStatus: null,
             videoStatus: null,
+            userId,
           });
         } else if (status === "failed") {
           // Stop polling

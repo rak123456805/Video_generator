@@ -1,8 +1,10 @@
 /* src/controllers/videoController.js */
 
 import { analyzeTopicSize } from "../services/analysisService.js";
-import { createJob, getJob } from "../services/jobStore.js";
+import { createJob, getJob, getAllJobs } from "../services/jobStore.js";
 import { runPipeline } from "../services/pipelineService.js";
+import { supabaseAdmin } from "../config/supabaseAdmin.js";
+import { getAuthClientFromEncryptedToken, listVideosInDrive } from "../services/googleDriveService.js";
 
 /* ---------------- API HANDLERS ---------------- */
 
@@ -142,6 +144,113 @@ export const getQuizByJobId = async (req, res) => {
       questions: null,
       error: job.result?.quizError || null,
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+/* ── Helper: Parse topic from standard filename structure ── */
+function parseTopicFromFilename(filename) {
+  const clean = filename.replace(/\.mp4$/i, "");
+  const parts = clean.split("-");
+  if (parts.length >= 5 && (parts[0] === "crash" || parts[0] === "full")) {
+    const topicParts = parts.slice(1, parts.length - 3);
+    return topicParts.join(" ");
+  }
+  return clean;
+}
+
+/* ---------------- LIST ALL COMPLETED VIDEOS ENDPOINT ---------------- */
+
+export const listVideos = async (req, res) => {
+  try {
+    const userId = req.user?.id || null;
+    const allJobs = getAllJobs();
+    
+    // 1. Get completed local server jobs
+    const filteredJobs = allJobs.filter((job) => {
+      const jobUserId = job.meta?.userId || job.userId || null;
+      return jobUserId === userId;
+    });
+
+    const completedLocal = filteredJobs
+      .filter((job) => job.overall_status === "completed" && job.result?.finalVideo)
+      .map((job) => ({
+        jobId: job.id,
+        topic: job.meta?.topic || "Untitled",
+        language: job.meta?.language || "en",
+        mode: job.result?.mode || job.meta?.mode || "CRASH",
+        part: job.result?.part || job.meta?.part || 1,
+        isFullCourse: (job.result?.mode || job.meta?.mode) === "FULL",
+        finalVideo: job.result.finalVideo,
+        driveFileId: job.result.driveFileId || null,
+        driveFileUrl: job.result.driveFileUrl || null,
+        driveUploaded: !!job.result.driveFileUrl,
+        createdAt: job.createdAt,
+      }));
+
+    // 2. If authenticated, fetch files directly from connected Google Drive
+    let driveVideos = [];
+    if (userId) {
+      try {
+        const { data: connection } = await supabaseAdmin
+          .from("google_drive_connections")
+          .select("encrypted_refresh_token, drive_folder_id")
+          .eq("user_id", userId)
+          .single();
+
+        if (connection && connection.encrypted_refresh_token && connection.drive_folder_id) {
+          const oauth2Client = await getAuthClientFromEncryptedToken(connection.encrypted_refresh_token);
+          const driveFiles = await listVideosInDrive(oauth2Client, connection.drive_folder_id);
+
+          driveVideos = driveFiles.map((file) => {
+            const topic = parseTopicFromFilename(file.name);
+            const isFullCourse = file.name.startsWith("full-");
+
+            let part = 1;
+            const match = file.name.match(/-p(\d+)-/);
+            if (match) part = Number(match[1]);
+
+            return {
+              jobId: `drive-${file.id}`,
+              topic,
+              language: "en",
+              mode: isFullCourse ? "FULL" : "CRASH",
+              part,
+              isFullCourse,
+              finalVideo: file.webContentLink || file.webViewLink, // direct download or preview link
+              driveFileId: file.id,
+              driveFileUrl: file.webViewLink,
+              driveUploaded: true,
+              createdAt: new Date(file.createdTime).getTime(),
+            };
+          });
+        }
+      } catch (driveErr) {
+        console.warn("⚠️ Failed to load Google Drive videos for list:", driveErr.message);
+      }
+    }
+
+    // 3. Combine and deduplicate
+    const combined = [...completedLocal, ...driveVideos];
+    const seen = new Set();
+    const deduplicated = [];
+
+    for (const video of combined) {
+      // Deduplicate by driveFileId if present, otherwise by topic/mode/part
+      const key = video.driveFileId 
+        ? `drive-${video.driveFileId}` 
+        : `local-${video.topic}-${video.mode}-${video.part}`;
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduplicated.push(video);
+      }
+    }
+
+    // Sort newest first
+    deduplicated.sort((a, b) => b.createdAt - a.createdAt);
+
+    res.json({ success: true, videos: deduplicated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

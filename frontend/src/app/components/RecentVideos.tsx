@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Download, Share2, Clock, Calendar, X, Eye, MoreHorizontal, Sparkles, HardDrive } from 'lucide-react';
+import { Play, Download, Share2, Clock, Calendar, X, Eye, MoreHorizontal, Sparkles, HardDrive, Video, Loader2 } from 'lucide-react';
 import { useVideo } from '../contexts/VideoContext';
+import apiClient from '../../api/client';
+import { useAuth } from '../contexts/AuthContext';
 
 interface RecentVideosProps {
   showAll?: boolean;
@@ -9,123 +11,147 @@ interface RecentVideosProps {
 
 export function RecentVideos({ showAll = false }: RecentVideosProps) {
   const { recentVideos } = useVideo();
+  const { user } = useAuth();
+  const currentUserId = user?.id || null;
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | number | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [backendVideos, setBackendVideos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const generatedVideos = recentVideos.map((video, index) => ({
-    id: `generated-${index}`,
-    title: video.topic || 'Untitled Video',
-    duration: video.isFullCourse ? `Part ${video.currentPart}` : '15 min',
-    date: new Date(video.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    thumbnail: video.videoUrl || '',
+  const BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000';
+
+  // Fetch all completed videos from backend on mount
+  useEffect(() => {
+    apiClient.get('/video/list')
+      .then((res) => {
+        if (res.data?.videos) setBackendVideos(res.data.videos);
+      })
+      .catch(() => { /* silently fall back to localStorage only */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Download helper — fetches as blob for a real file download
+  async function handleDownload(video: { id: string; videoUrl: string | undefined; topic: string }) {
+    if (!video.videoUrl) return;
+    setDownloadingId(video.id);
+    try {
+      const response = await fetch(video.videoUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      const safeName = (video.topic || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      link.download = `${safeName}.mp4`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      // Fallback: force-download via anchor with download attr
+      const link = document.createElement('a');
+      link.href = video.videoUrl!;
+      const safeName = (video.topic || 'video').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      link.download = `${safeName}.mp4`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  // Build video list from backend (source of truth) + localStorage (supplement)
+  const backendMapped = backendVideos.map((v, index) => ({
+    id: `backend-${v.jobId || index}`,
+    title: v.topic || 'Untitled Video',
+    duration: v.isFullCourse ? `Part ${v.part}` : '15 min',
+    date: new Date(v.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     views: 'New',
-    videoUrl: video.videoUrl,
-    isGenerated: true,
-    category: 'AI Generated',
-    driveFileUrl: video.driveFileUrl || null,
-    driveUploaded: video.driveUploaded || false,
+    videoUrl: `${BASE_URL}${v.finalVideo}`,
+    driveFileUrl: v.driveFileUrl || null,
+    driveUploaded: v.driveUploaded || false,
+    topic: v.topic || 'Untitled Video',
+    jobId: v.jobId,
   }));
 
-  const mockVideos = [
-    {
-      id: 1,
-      title: 'Introduction to Machine Learning',
-      duration: '30 min',
-      date: 'Aug 15, 2026',
-      thumbnail: 'https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=600&h=340&fit=crop&q=85',
-      views: '1.2k',
-      isGenerated: false,
-      videoUrl: undefined,
-      category: 'Technology',
-    },
-    {
-      id: 2,
-      title: 'Advanced Python Programming',
-      duration: '60 min',
-      date: 'Aug 12, 2026',
-      thumbnail: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&h=340&fit=crop&q=85',
-      views: '856',
-      isGenerated: false,
-      videoUrl: undefined,
-      category: 'Programming',
-    },
-    {
-      id: 3,
-      title: 'Web Development Fundamentals',
-      duration: '15 min',
-      date: 'Aug 10, 2026',
-      thumbnail: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600&h=340&fit=crop&q=85',
-      views: '2.3k',
-      isGenerated: false,
-      videoUrl: undefined,
-      category: 'Development',
-    },
-    {
-      id: 4,
-      title: 'Data Science with Pandas',
-      duration: '45 min',
-      date: 'Aug 8, 2026',
-      thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=340&fit=crop&q=85',
-      views: '3.1k',
-      isGenerated: false,
-      videoUrl: undefined,
-      category: 'Data Science',
-    },
-    {
-      id: 5,
-      title: 'Neural Networks Deep Dive',
-      duration: '60 min',
-      date: 'Aug 5, 2026',
-      thumbnail: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=600&h=340&fit=crop&q=85',
-      views: '4.7k',
-      isGenerated: false,
-      videoUrl: undefined,
-      category: 'AI & ML',
-    },
-    {
-      id: 6,
-      title: 'React & TypeScript Masterclass',
-      duration: '30 min',
-      date: 'Aug 2, 2026',
-      thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&h=340&fit=crop&q=85',
-      views: '5.2k',
-      isGenerated: false,
-      videoUrl: undefined,
-      category: 'Frontend',
-    },
-  ];
+  // Add any localStorage videos not already covered by backend (by jobId or videoUrl) and belonging to this user
+  const backendJobIds = new Set(backendVideos.map((v) => v.jobId));
+  const localOnlyMapped = recentVideos
+    .filter((v) => !!v.videoUrl && !backendJobIds.has(v.jobId as string) && (v.userId === currentUserId || (!v.userId && !currentUserId)))
+    .map((v, index) => ({
+      id: `local-${index}`,
+      title: v.topic || 'Untitled Video',
+      duration: v.isFullCourse ? `Part ${v.currentPart}` : '15 min',
+      date: new Date(v.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      views: 'New',
+      videoUrl: v.videoUrl as string,
+      driveFileUrl: v.driveFileUrl || null,
+      driveUploaded: v.driveUploaded || false,
+      topic: v.topic || 'Untitled Video',
+      jobId: v.jobId,
+    }));
 
-  const allVideos = [...generatedVideos, ...mockVideos];
-  const displayedVideos = showAll ? allVideos : allVideos.slice(0, 3);
+  const generatedVideos = [...backendMapped, ...localOnlyMapped];
+  const displayedVideos = showAll ? generatedVideos : generatedVideos.slice(0, 3);
 
-  const categoryColors: Record<string, string> = {
-    'AI Generated': '#7C3AED',
-    'Technology': '#6D28D9',
-    'Programming': '#5B21B6',
-    'Development': '#4C1D95',
-    'Data Science': '#7C3AED',
-    'AI & ML': '#6D28D9',
-    'Frontend': '#5B21B6',
-  };
+  // ── Loading state ──────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-white">{showAll ? 'All Videos' : 'Recent Videos'}</h3>
+        </div>
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+          <span className="ml-3 text-slate-400 text-sm">Loading your videos...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Empty state ──────────────────────────────────────────────────────
+  if (generatedVideos.length === 0) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-white">
+            {showAll ? 'All Videos' : 'Recent Videos'}
+          </h3>
+        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center py-16 rounded-2xl text-center"
+          style={{ border: '1px dashed rgba(139,92,246,0.3)', background: 'rgba(6,0,16,0.5)' }}
+        >
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
+            style={{ background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(139,92,246,0.3)' }}>
+            <Video className="w-7 h-7 text-purple-400" />
+          </div>
+          <h4 className="text-white font-bold text-lg mb-2">No videos yet</h4>
+          <p className="text-slate-500 text-sm max-w-xs">
+            Videos you generate will appear here. Head over to "Generate Video" to create your first AI course!
+          </p>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-xl font-bold text-white">
-          {showAll ? 'All Videos' : 'Recent Videos'}
+          {showAll ? `All Videos (${generatedVideos.length})` : 'Recent Videos'}
         </h3>
-        {!showAll && (
-          <button className="text-sm text-purple-400 hover:text-purple-300 transition-colors flex items-center gap-1">
-            View All <span className="text-xs">→</span>
-          </button>
-        )}
       </div>
 
       {/* Grid */}
       <div className={`grid gap-5 ${showAll ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
         {displayedVideos.map((video, idx) => {
-          const catColor = categoryColors[video.category] || '#7C3AED';
+          const catColor = '#7C3AED';
           return (
             <motion.div
               key={video.id}
@@ -144,14 +170,12 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
             >
               {/* Thumbnail */}
               <div className="relative aspect-video overflow-hidden bg-slate-900">
-                {video.isGenerated && video.videoUrl ? (
+                {video.videoUrl ? (
                   <video src={video.videoUrl} className="w-full h-full object-cover" preload="metadata" />
                 ) : (
-                  <img
-                    src={video.thumbnail}
-                    alt={video.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
+                  <div className="w-full h-full flex items-center justify-center bg-slate-800">
+                    <Video className="w-10 h-10 text-slate-600" />
+                  </div>
                 )}
 
                 {/* Overlay on hover */}
@@ -177,17 +201,11 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
                   )}
                 </AnimatePresence>
 
-                {/* Badges */}
+                {/* AI Badge */}
                 <div className="absolute top-3 left-3 flex gap-2">
-                  {video.isGenerated && (
-                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-white"
-                      style={{ background: 'rgba(109,40,217,0.9)' }}>
-                      <Sparkles className="w-3 h-3" /> AI
-                    </span>
-                  )}
-                  <span className="px-2.5 py-1 rounded-full text-xs font-semibold text-white"
-                    style={{ background: `${catColor}cc` }}>
-                    {video.category}
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold text-white"
+                    style={{ background: 'rgba(109,40,217,0.9)' }}>
+                    <Sparkles className="w-3 h-3" /> AI Generated
                   </span>
                 </div>
 
@@ -208,6 +226,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
 
                 {/* Actions */}
                 <div className="flex items-center gap-2">
+                  {/* Watch */}
                   <button
                     onClick={() => video.videoUrl && setSelectedVideo(video.videoUrl)}
                     className="flex-1 py-2 px-3 rounded-xl text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
@@ -215,6 +234,8 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
                   >
                     <Play className="w-3.5 h-3.5" /> Watch
                   </button>
+
+                  {/* Download or Drive */}
                   {video.driveUploaded && video.driveFileUrl ? (
                     <motion.button
                       whileHover={{ scale: 1.1 }}
@@ -230,22 +251,44 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
                     <motion.button
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
-                      onClick={() => video.videoUrl && window.open(video.videoUrl, '_blank')}
-                      className="p-2 rounded-xl text-slate-500 hover:text-purple-400 transition-colors"
+                      onClick={() => handleDownload(video)}
+                      disabled={downloadingId === video.id}
+                      className="p-2 rounded-xl text-slate-400 hover:text-purple-400 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                       style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
-                      title="Download"
+                      title="Download video"
                     >
-                      <Download className="w-4 h-4" />
+                      {downloadingId === video.id ? (
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                          className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full"
+                        />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
                     </motion.button>
                   )}
+
+                  {/* Share */}
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    className="p-2 rounded-xl text-slate-500 hover:text-purple-400 transition-colors"
+                    onClick={async () => {
+                      if (video.videoUrl && navigator.share) {
+                        try { await navigator.share({ title: video.title, url: video.videoUrl }); } catch {}
+                      } else if (video.videoUrl) {
+                        await navigator.clipboard.writeText(video.videoUrl);
+                        alert('Video URL copied to clipboard!');
+                      }
+                    }}
+                    className="p-2 rounded-xl text-slate-400 hover:text-purple-400 transition-colors"
                     style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
+                    title="Share"
                   >
                     <Share2 className="w-4 h-4" />
                   </motion.button>
+
+                  {/* More */}
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}

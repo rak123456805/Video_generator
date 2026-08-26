@@ -135,6 +135,28 @@ export async function uploadVideoToDrive(oauth2Client, folderId, filePath, filen
 }
 
 /**
+ * List all mp4 files in the user's TextToVideo Drive folder.
+ *
+ * @param {object} oauth2Client — authenticated OAuth2 client
+ * @param {string} folderId — Drive folder ID
+ */
+export async function listVideosInDrive(oauth2Client, folderId) {
+  try {
+    const drive = google.drive({ version: "v3", auth: oauth2Client });
+    const res = await drive.files.list({
+      q: `'${folderId}' in parents and mimeType = 'video/mp4' and trashed = false`,
+      fields: "files(id, name, webViewLink, webContentLink, createdTime)",
+      orderBy: "createdTime desc",
+      spaces: "drive",
+    });
+    return res.data.files || [];
+  } catch (err) {
+    console.warn("⚠️ Failed to list files from Google Drive:", err.message);
+    return [];
+  }
+}
+
+/**
  * Revoke the Google OAuth authorization for this client.
  * Called when the user disconnects Google Drive.
  * Best-effort — does not throw on failure.
