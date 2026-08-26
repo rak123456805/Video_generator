@@ -1,5 +1,3 @@
-/* src/routes/googleDriveRoutes.js */
-
 import express from "express";
 import {
   connectDrive,
@@ -7,6 +5,7 @@ import {
   driveCallback,
   getDriveStatus,
   disconnectDrive,
+  streamVideo,
 } from "../controllers/googleDriveController.js";
 import { authenticate } from "../middleware/authMiddleware.js";
 
@@ -48,5 +47,11 @@ router.get("/status", authenticate, getDriveStatus);
  * Revokes Google token and deletes DB row.
  */
 router.post("/disconnect", authenticate, disconnectDrive);
+
+/**
+ * GET /api/google-drive/stream/:fileId
+ * Streams the video directly from Google Drive securely.
+ */
+router.get("/stream/:fileId", authenticate, streamVideo);
 
 export default router;

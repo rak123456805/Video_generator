@@ -19,6 +19,10 @@ function extractToken(req) {
   if (header.startsWith("Bearer ")) {
     return header.slice(7).trim();
   }
+  // Support token in query parameter for video tag requests
+  if (req.query?.token) {
+    return req.query.token;
+  }
   return null;
 }
 

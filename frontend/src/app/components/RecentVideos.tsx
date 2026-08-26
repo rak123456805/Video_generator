@@ -11,7 +11,7 @@ interface RecentVideosProps {
 
 export function RecentVideos({ showAll = false }: RecentVideosProps) {
   const { recentVideos } = useVideo();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const currentUserId = user?.id || null;
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | number | null>(null);
@@ -62,36 +62,52 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
     }
   }
 
+  const token = session?.access_token || '';
+
   // Build video list from backend (source of truth) + localStorage (supplement)
-  const backendMapped = backendVideos.map((v, index) => ({
-    id: `backend-${v.jobId || index}`,
-    title: v.topic || 'Untitled Video',
-    duration: v.isFullCourse ? `Part ${v.part}` : '15 min',
-    date: new Date(v.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    views: 'New',
-    videoUrl: `${BASE_URL}${v.finalVideo}`,
-    driveFileUrl: v.driveFileUrl || null,
-    driveUploaded: v.driveUploaded || false,
-    topic: v.topic || 'Untitled Video',
-    jobId: v.jobId,
-  }));
+  const backendMapped = backendVideos.map((v, index) => {
+    const isDriveVideo = v.driveUploaded && v.driveFileId;
+    const finalVideoPath = isDriveVideo
+      ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
+      : v.finalVideo;
+
+    return {
+      id: `backend-${v.jobId || index}`,
+      title: v.topic || 'Untitled Video',
+      duration: v.isFullCourse ? `Part ${v.part}` : '15 min',
+      date: new Date(v.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      views: 'New',
+      videoUrl: `${BASE_URL}${finalVideoPath}`,
+      driveFileUrl: v.driveFileUrl || null,
+      driveUploaded: v.driveUploaded || false,
+      topic: v.topic || 'Untitled Video',
+      jobId: v.jobId,
+    };
+  });
 
   // Add any localStorage videos not already covered by backend (by jobId or videoUrl) and belonging to this user
   const backendJobIds = new Set(backendVideos.map((v) => v.jobId));
   const localOnlyMapped = recentVideos
     .filter((v) => !!v.videoUrl && !backendJobIds.has(v.jobId as string) && (v.userId === currentUserId || (!v.userId && !currentUserId)))
-    .map((v, index) => ({
-      id: `local-${index}`,
-      title: v.topic || 'Untitled Video',
-      duration: v.isFullCourse ? `Part ${v.currentPart}` : '15 min',
-      date: new Date(v.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      views: 'New',
-      videoUrl: v.videoUrl as string,
-      driveFileUrl: v.driveFileUrl || null,
-      driveUploaded: v.driveUploaded || false,
-      topic: v.topic || 'Untitled Video',
-      jobId: v.jobId,
-    }));
+    .map((v, index) => {
+      const isDriveVideo = v.driveUploaded && v.driveFileId;
+      const finalUrl = isDriveVideo
+        ? `${BASE_URL}/api/google-drive/stream/${v.driveFileId}?token=${token}`
+        : v.videoUrl;
+
+      return {
+        id: `local-${index}`,
+        title: v.topic || 'Untitled Video',
+        duration: v.isFullCourse ? `Part ${v.currentPart}` : '15 min',
+        date: new Date(v.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        views: 'New',
+        videoUrl: finalUrl as string,
+        driveFileUrl: v.driveFileUrl || null,
+        driveUploaded: v.driveUploaded || false,
+        topic: v.topic || 'Untitled Video',
+        jobId: v.jobId,
+      };
+    });
 
   const generatedVideos = [...backendMapped, ...localOnlyMapped];
   const displayedVideos = showAll ? generatedVideos : generatedVideos.slice(0, 3);

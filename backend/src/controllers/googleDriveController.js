@@ -22,6 +22,7 @@ import {
   getOrCreateTextToVideoFolder,
   getAuthClientFromEncryptedToken,
   revokeGoogleToken,
+  downloadFileAsStream,
 } from "../services/googleDriveService.js";
 import { encrypt } from "../services/encryptionService.js";
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
@@ -312,5 +313,50 @@ export async function disconnectDrive(req, res) {
   } catch (err) {
     console.error("❌ Drive disconnect error:", err.message);
     res.status(500).json({ success: false, error: "Failed to disconnect Drive." });
+  }
+}
+
+/**
+ * GET /api/google-drive/stream/:fileId
+ * Streams the video directly from Google Drive.
+ * Authenticated endpoint.
+ */
+export async function streamVideo(req, res) {
+  try {
+    const userId = req.user.id;
+    const { fileId } = req.params;
+
+    // Fetch the connection details for this user
+    const { data: connection, error } = await supabaseAdmin
+      .from("google_drive_connections")
+      .select("encrypted_refresh_token")
+      .eq("user_id", userId)
+      .single();
+
+    if (error || !connection) {
+      return res.status(404).json({ success: false, error: "Google Drive connection not found." });
+    }
+
+    // Build the authorized client
+    const oauth2Client = await getAuthClientFromEncryptedToken(connection.encrypted_refresh_token);
+
+    // Get the read stream from Google Drive
+    const stream = await downloadFileAsStream(oauth2Client, fileId);
+
+    // Set headers
+    res.setHeader("Content-Type", "video/mp4");
+    
+    // Pipe to response
+    stream.on("error", (err) => {
+      console.error("❌ Drive stream error:", err.message);
+      if (!res.headersSent) {
+        res.status(500).send("Streaming failed.");
+      }
+    });
+
+    stream.pipe(res);
+  } catch (err) {
+    console.error("❌ Video stream controller error:", err.message);
+    res.status(500).json({ success: false, error: "Failed to stream video from Google Drive." });
   }
 }
