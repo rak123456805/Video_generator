@@ -190,19 +190,19 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
     /* ---------------- RENDER: INITIAL STATE ---------------- */
     if (questions.length === 0 && !isGenerating) {
         return (
-            <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl">
+            <div className="max-w-4xl mx-auto bg-[#0b031a]/60 border border-purple-500/20 rounded-2xl p-8 shadow-xl">
                 <div className="flex items-center gap-3 mb-6">
-                    <Brain className="w-6 h-6 text-purple-600" />
-                    <h3 className="text-2xl font-bold">Quiz Generator</h3>
+                    <Brain className="w-6 h-6 text-purple-400 animate-pulse" />
+                    <h3 className="text-2xl font-bold text-white">Quiz Generator</h3>
                 </div>
 
                 {error && (
-                    <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
-                        <p className="text-red-600 dark:text-red-400">{error}</p>
+                    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                        <p className="text-red-400 text-sm font-medium">{error}</p>
                     </div>
                 )}
 
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                <p className="text-slate-300 mb-6 leading-relaxed">
                     Test your knowledge with an AI-generated quiz based on your video content.
                 </p>
 
@@ -220,7 +220,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                 </button>
 
                 {(!topic || topic.trim() === '') && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">
+                    <p className="text-sm text-slate-500 mt-4 text-center">
                         Generate a video first to create a quiz
                     </p>
                 )}
@@ -231,18 +231,15 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
     /* ---------------- RENDER: LOADING ---------------- */
     if (isGenerating) {
         return (
-            <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl">
+            <div className="max-w-4xl mx-auto bg-[#0b031a]/60 border border-purple-500/20 rounded-2xl p-8 shadow-xl">
                 <div className="flex flex-col items-center justify-center py-12">
                     <div className="relative mb-4">
-                        <Loader2 className="w-12 h-12 text-purple-600 animate-spin" />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-8 h-8 bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-gray-800 dark:to-gray-900 rounded-full"></div>
-                        </div>
+                        <Loader2 className="w-12 h-12 text-purple-400 animate-spin" />
                     </div>
-                    <h4 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">
+                    <h4 className="text-lg font-semibold text-white mb-2">
                         Generating Your Quiz
                     </h4>
-                    <p className="text-gray-600 dark:text-gray-300 text-center">
+                    <p className="text-slate-400 text-center">
                         Creating personalized questions based on your video content...
                     </p>
                 </div>
@@ -253,29 +250,29 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
     /* ---------------- RENDER: QUIZ COMPLETED ---------------- */
     if (quizCompleted) {
         const getGrade = () => {
-            if (percentage >= 90) return { grade: "A+", color: "text-green-600 dark:text-green-400", message: "Outstanding!" };
-            if (percentage >= 80) return { grade: "A", color: "text-green-600 dark:text-green-400", message: "Excellent!" };
-            if (percentage >= 70) return { grade: "B", color: "text-blue-600 dark:text-blue-400", message: "Good job!" };
-            if (percentage >= 60) return { grade: "C", color: "text-yellow-600 dark:text-yellow-400", message: "Not bad!" };
-            return { grade: "D", color: "text-red-600 dark:text-red-400", message: "Keep practicing!" };
+            if (percentage >= 90) return { grade: "A+", color: "text-green-400", message: "Outstanding!" };
+            if (percentage >= 80) return { grade: "A", color: "text-green-400", message: "Excellent!" };
+            if (percentage >= 70) return { grade: "B", color: "text-blue-400", message: "Good job!" };
+            if (percentage >= 60) return { grade: "C", color: "text-yellow-400", message: "Not bad!" };
+            return { grade: "D", color: "text-red-400", message: "Keep practicing!" };
         };
 
         const gradeInfo = getGrade();
 
         return (
-            <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl">
+            <div className="max-w-4xl mx-auto bg-[#0b031a]/60 border border-purple-500/20 rounded-2xl p-8 shadow-xl">
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-r from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 mb-4">
-                        <CheckCircle2 className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-purple-950/30 border border-purple-500/20 mb-4">
+                        <CheckCircle2 className="w-10 h-10 text-purple-400" />
                     </div>
-                    <h2 className="text-3xl font-bold mb-2">Quiz Completed!</h2>
-                    <p className="text-gray-600 dark:text-gray-400">{gradeInfo.message}</p>
+                    <h2 className="text-3xl font-bold mb-2 text-white">Quiz Completed!</h2>
+                    <p className="text-slate-400">{gradeInfo.message}</p>
                 </div>
 
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl p-6 mb-6">
+                <div className="bg-purple-950/20 border border-purple-500/10 rounded-xl p-6 mb-6">
                     <div className="text-center">
-                        <p className="text-gray-600 dark:text-gray-400 mb-2">Your Score</p>
-                        <p className="text-5xl font-bold mb-2">
+                        <p className="text-slate-400 mb-2">Your Score</p>
+                        <p className="text-5xl font-bold mb-2 text-white">
                             {score}/{questions.length}
                         </p>
                         <p className={`text-2xl font-semibold ${gradeInfo.color}`}>
@@ -285,7 +282,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                 </div>
 
                 <div className="space-y-4 mb-6">
-                    <h3 className="text-xl font-semibold mb-4">Review Your Answers</h3>
+                    <h3 className="text-xl font-semibold mb-4 text-white">Review Your Answers</h3>
                     {questions.map((q, index) => {
                         const userAnswer = selectedAnswers[index];
                         const isCorrect = userAnswer === q.correctAnswer;
@@ -294,26 +291,26 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                             <div
                                 key={index}
                                 className={`p-4 rounded-xl border-2 ${isCorrect
-                                    ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20"
-                                    : "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20"
+                                    ? "border-green-500/20 bg-green-500/5"
+                                    : "border-red-500/20 bg-red-500/5"
                                     }`}
                             >
                                 <div className="flex items-start gap-3 mb-2">
                                     {isCorrect ? (
-                                        <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-1" />
+                                        <CheckCircle2 className="w-5 h-5 text-green-400 flex-shrink-0 mt-1" />
                                     ) : (
-                                        <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-1" />
+                                        <XCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-1" />
                                     )}
                                     <div className="flex-1">
-                                        <p className="font-semibold mb-2">
+                                        <p className="font-semibold mb-2 text-white">
                                             {index + 1}. {q.question}
                                         </p>
-                                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                                            Your answer: <span className={isCorrect ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>{userAnswer !== null ? q.options[userAnswer] : "Not answered"}</span>
+                                        <p className="text-sm text-slate-300">
+                                            Your answer: <span className={isCorrect ? "text-green-400" : "text-red-400"}>{userAnswer !== null ? q.options[userAnswer] : "Not answered"}</span>
                                         </p>
                                         {!isCorrect && (
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                Correct answer: <span className="text-green-600 dark:text-green-400">{q.options[q.correctAnswer]}</span>
+                                            <p className="text-sm text-slate-400 mt-1">
+                                                Correct answer: <span className="text-green-400 font-medium">{q.options[q.correctAnswer]}</span>
                                             </p>
                                         )}
                                     </div>
@@ -326,11 +323,9 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                 <div className="flex gap-4">
                     <button
                         onClick={handleRetryQuiz}
-                        className="flex-1 px-6 py-3 rounded-xl border-2 border-gray-300 
-                       dark:border-gray-600 hover:border-purple-400 
-                       dark:hover:border-purple-500 bg-white dark:bg-gray-800
-                       text-gray-800 dark:text-white font-medium
-                       hover:bg-gray-50 dark:hover:bg-gray-700
+                        className="flex-1 px-6 py-3 rounded-xl border-2 border-slate-700 
+                       hover:border-purple-400 bg-slate-900
+                       text-slate-200 font-medium hover:bg-slate-800
                        transition-all duration-300 shadow-md hover:shadow-lg
                        flex items-center justify-center gap-2"
                     >
@@ -360,18 +355,18 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
 
     /* ---------------- RENDER: ACTIVE QUIZ ---------------- */
     return (
-        <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl">
+        <div className="max-w-4xl mx-auto bg-[#0b031a]/60 border border-purple-500/20 rounded-2xl p-8 shadow-xl">
             {/* Progress Bar */}
             <div className="mb-6">
                 <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                    <span className="text-sm font-medium text-slate-400">
                         Question {currentQuestionIndex + 1} of {questions.length}
                     </span>
-                    <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                    <span className="text-sm font-medium text-purple-400">
                         {currentQuestion.difficulty.charAt(0).toUpperCase() + currentQuestion.difficulty.slice(1)}
                     </span>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+                <div className="w-full bg-slate-800 rounded-full h-2.5">
                     <div
                         className="bg-gradient-to-r from-purple-500 to-indigo-500 h-2.5 rounded-full transition-all duration-300"
                         style={{ width: `${((currentQuestionIndex + 1) / questions.length) * 100}%` }}
@@ -390,7 +385,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
 
                     let dotClass = "w-8 h-8 rounded-full text-xs font-bold flex items-center justify-center cursor-pointer transition-all duration-200 ";
                     if (isCurrent) {
-                        dotClass += "ring-2 ring-purple-500 ring-offset-2 dark:ring-offset-gray-800 ";
+                        dotClass += "ring-2 ring-purple-500 ring-offset-2 ring-offset-slate-950 ";
                     }
                     if (isCorrect) {
                         dotClass += "bg-green-500 text-white";
@@ -399,7 +394,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                     } else if (isAnswered) {
                         dotClass += "bg-purple-500 text-white";
                     } else {
-                        dotClass += "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600";
+                        dotClass += "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white";
                     }
 
                     return (
@@ -417,7 +412,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
 
             {/* Question */}
             <div className="mb-6">
-                <h3 className="text-2xl font-bold mb-6">{currentQuestion.question}</h3>
+                <h3 className="text-2xl font-bold mb-6 text-white leading-snug">{currentQuestion.question}</h3>
 
                 {/* Options */}
                 <div className="space-y-3">
@@ -430,17 +425,17 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
 
                         if (showCorrectness) {
                             if (isCorrect) {
-                                optionClass += "border-green-500 bg-green-50 dark:bg-green-900/20 dark:border-green-600";
+                                optionClass += "border-green-500 bg-green-500/10";
                             } else if (isSelected && !isCorrect) {
-                                optionClass += "border-red-500 bg-red-50 dark:bg-red-900/20 dark:border-red-600";
+                                optionClass += "border-red-500 bg-red-500/10";
                             } else {
-                                optionClass += "border-gray-300 dark:border-gray-600 opacity-50";
+                                optionClass += "border-slate-800 opacity-40 text-slate-500";
                             }
                         } else {
                             if (isSelected) {
-                                optionClass += "border-purple-500 bg-purple-50 dark:bg-purple-900/20 dark:border-purple-500";
+                                optionClass += "border-purple-500 bg-purple-500/10";
                             } else {
-                                optionClass += "border-gray-300 dark:border-gray-600 hover:border-purple-400 dark:hover:border-purple-500";
+                                optionClass += "border-slate-700 bg-slate-900/40 text-slate-300 hover:border-purple-400 hover:text-white";
                             }
                         }
 
@@ -457,12 +452,12 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                                             ? "border-red-500 bg-red-500"
                                             : isSelected
                                                 ? "border-purple-500 bg-purple-500"
-                                                : "border-gray-400"
+                                                : "border-gray-500"
                                         }`}>
                                         {showCorrectness && isCorrect && <CheckCircle2 className="w-4 h-4 text-white" />}
                                         {showCorrectness && isSelected && !isCorrect && <XCircle className="w-4 h-4 text-white" />}
                                     </div>
-                                    <span className="flex-1">{option}</span>
+                                    <span className="flex-1 text-sm font-medium">{option}</span>
                                 </div>
                             </div>
                         );
@@ -472,9 +467,9 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
 
             {/* Explanation */}
             {isCurrentSubmitted && (
-                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
-                    <p className="font-semibold text-blue-900 dark:text-blue-300 mb-2">Explanation:</p>
-                    <p className="text-blue-800 dark:text-blue-200">{currentQuestion.explanation}</p>
+                <div className="mb-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                    <p className="font-semibold text-blue-300 mb-2">Explanation:</p>
+                    <p className="text-blue-200">{currentQuestion.explanation}</p>
                 </div>
             )}
 
@@ -484,10 +479,10 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                 <button
                     onClick={handlePreviousQuestion}
                     disabled={isFirstQuestion}
-                    className="px-5 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-600
-                     hover:border-purple-400 dark:hover:border-purple-500
-                     bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300
+                    className="px-5 py-3 rounded-xl border-2 border-slate-700
+                     bg-slate-900 text-slate-300
                      font-medium transition-all duration-300
+                     hover:bg-slate-800 hover:border-purple-500
                      disabled:opacity-30 disabled:cursor-not-allowed
                      flex items-center gap-1"
                 >
@@ -541,7 +536,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
 
             {/* Unanswered count indicator */}
             {!allSubmitted && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-4 text-center">
+                <p className="text-sm text-slate-500 mt-4 text-center">
                     {submittedQuestions.filter(s => s).length} of {questions.length} questions answered
                 </p>
             )}

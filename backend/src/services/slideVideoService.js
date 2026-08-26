@@ -72,6 +72,7 @@ export const generateVideoFromSlides = async (
       ])
       .outputOptions([
         "-c:v libx264",
+        "-preset ultrafast",
         "-pix_fmt yuv420p",
         "-r 30", // Force 30fps output
         "-movflags +faststart"

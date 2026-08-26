@@ -28,15 +28,12 @@ export const mergeVideoAndAudio = (
      */
     const ffmpegCmd = [
       `"${ffmpegPath}" -y`,
+      `-loglevel error`,
       `-i "${silentVideoPath}"`,
       `-i "${audioPath}"`,
       `-map 0:v:0`,
       `-map 1:a:0`,
-      `-c:v libx264`,
-      `-preset ultrafast`,
-      `-pix_fmt yuv420p`,
-      `-fps_mode cfr`,
-      `-r 30`,
+      `-c:v copy`,
       `-c:a aac`,
       `-b:a 192k`,
       `-ac 2`,
@@ -50,7 +47,7 @@ export const mergeVideoAndAudio = (
     console.log("🎥 Merging Audio and Video...");
     console.log(ffmpegCmd);
 
-    exec(ffmpegCmd, (error, stdout, stderr) => {
+    exec(ffmpegCmd, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
       if (error) {
         console.error("❌ FFmpeg Merge Error:", stderr);
         return reject(

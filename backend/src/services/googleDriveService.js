@@ -157,6 +157,21 @@ export async function listVideosInDrive(oauth2Client, folderId) {
 }
 
 /**
+ * Download/stream file binary content directly from Google Drive.
+ *
+ * @param {object} oauth2Client — authenticated OAuth2 client
+ * @param {string} fileId — Google Drive file ID
+ */
+export async function downloadFileAsStream(oauth2Client, fileId) {
+  const drive = google.drive({ version: "v3", auth: oauth2Client });
+  const res = await drive.files.get(
+    { fileId, alt: "media" },
+    { responseType: "stream" }
+  );
+  return res.data;
+}
+
+/**
  * Revoke the Google OAuth authorization for this client.
  * Called when the user disconnects Google Drive.
  * Best-effort — does not throw on failure.
