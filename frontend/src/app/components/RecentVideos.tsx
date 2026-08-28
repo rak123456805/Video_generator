@@ -226,6 +226,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
                     src={video.videoUrl}
                     className="w-full h-full object-cover"
                     preload="metadata"
+                    crossOrigin="use-credentials"
                     onError={() => setVideoErrors(prev => new Set(prev).add(video.id))}
                   />
                 ) : videoErrors.has(video.id) ? (
@@ -446,6 +447,7 @@ function VideoPlayerWithFallback({ src, driveFileUrl }: { src: string; driveFile
       src={src}
       controls
       autoPlay
+      crossOrigin="use-credentials"
       className="w-full h-auto max-h-[80vh]"
       onError={() => setErrored(true)}
     />
