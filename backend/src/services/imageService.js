@@ -31,34 +31,35 @@ export const generateImage = async (prompt, outputPath) => {
  * @returns {boolean}
  */
 const shouldGenerateImage = (slide, index, totalSlides) => {
-    // Image generation is disabled
+    // Image generation is currently disabled to optimize render time & resources
     return false;
 
-    // Uncomment below when image generation is enabled:
+    // When image generation is enabled: TextRank prioritizes key concepts for visual assets
     /*
-    // Skip last 3 slides (usually conclusion/summary/thank you)
-    if (index >= totalSlides - 3) {
+    // Skip concluding slides
+    if (index >= totalSlides - 2) {
       return false;
     }
   
-    // Only generate for first 7 slides maximum
-    if (index >= 7) {
-      return false;
-    }
-  
-    // Skip if no imagePrompt
+    // Skip if no image prompt
     if (!slide.imagePrompt || !slide.imagePrompt.trim()) {
       return false;
     }
-  
-    // Skip slides with certain keywords in title (conclusion, summary, etc.)
-    const skipKeywords = ['conclusion', 'summary', 'thank', 'recap', 'review', 'end'];
+
+    // Skip slides with standard recap/conclusion titles
+    const skipKeywords = ['conclusion', 'summary', 'thank you', 'recap', 'review', 'q&a'];
     const titleLower = (slide.title || '').toLowerCase();
     if (skipKeywords.some(keyword => titleLower.includes(keyword))) {
       return false;
     }
+
+    // Prioritize slides marked with 'high' visual emphasis by TextRank
+    if (slide.visualEmphasis === 'high' || (slide.importanceScore && slide.importanceScore > 0.15)) {
+      return true;
+    }
   
-    return true;
+    // Fallback: Generate for top-ranked slides up to max 6 slides
+    return (slide.textRankRank && slide.textRankRank <= 6);
     */
 };
 

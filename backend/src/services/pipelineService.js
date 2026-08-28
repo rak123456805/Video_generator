@@ -3,6 +3,7 @@
 import path from "path";
 import fs from "fs";
 import { generateAIScript } from "./scriptService.js";
+import { planScenesWithTextRank } from "./textRankService.js";
 import { generateSpeech } from "./tts/index.js";
 import { generateSlides } from "./slideService.js";
 import { generateVideoFromSlides } from "./slideVideoService.js";
@@ -153,18 +154,22 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
             progress: "Generating script...",
         });
 
-        const scriptSlides = await generateAIScript({ topic, duration, mode, part, language });
+        const rawScriptSlides = await generateAIScript({ topic, duration, mode, part, language });
 
-        if (!scriptSlides || scriptSlides.length === 0) {
+        if (!rawScriptSlides || rawScriptSlides.length === 0) {
             throw new Error("Script generation returned empty result");
         }
 
+        // Apply TextRank NLP algorithm for intelligent scene planning & concept ranking
+        console.log(`🧠 [${jobId}] Applying TextRank NLP algorithm for scene planning...`);
+        const scriptSlides = planScenesWithTextRank(rawScriptSlides);
+
         updateJob(jobId, {
             text_status: "completed",
-            progress: "Script ready — starting parallel generation...",
+            progress: "Script & TextRank analysis ready — starting generation...",
             result: { scriptSlides },
         });
-        console.log(`✅ [${jobId}] Text generation completed (${scriptSlides.length} slides)`);
+        console.log(`✅ [${jobId}] Text generation & TextRank planning completed (${scriptSlides.length} slides)`);
 
         /* ================================================================
            STEP 2: SEQUENTIAL — Quiz -> Slides -> Audio

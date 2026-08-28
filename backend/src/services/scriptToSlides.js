@@ -9,7 +9,12 @@ export const scriptToSlides = (scriptData, options = {}) => {
       wordCount: slide.wordCount || 0,
       narration: slide.narration || "", // Keep narration for TTS
       imagePrompt: slide.imagePrompt || "",
-      examples: slide.examples || [] // Add examples support
+      examples: slide.examples || [], // Add examples support
+      importanceScore: slide.importanceScore ?? 0.1,
+      textRankRank: slide.textRankRank ?? 1,
+      visualEmphasis: slide.visualEmphasis || "standard",
+      keyConcepts: slide.keyConcepts || [],
+      highlightSentence: slide.highlightSentence || ""
     }));
   }
 
