@@ -343,6 +343,24 @@ export async function streamVideo(req, res) {
     // Get the read stream from Google Drive (with range header support)
     const driveRes = await downloadFileAsStream(oauth2Client, fileId, req.headers.range);
 
+    // ── Explicit CORS headers for cross-origin <video> elements ──────────
+    // Express cors() middleware may not attach headers when we pipe a stream,
+    // so we set them explicitly here to guarantee they appear on the response.
+    const requestOrigin = req.headers.origin;
+    const rawOrigins = process.env.CORS_ORIGINS || "http://localhost:5173";
+    const allowedOrigins = rawOrigins.split(",").map((s) => s.trim().replace(/\/$/, ""));
+    if (requestOrigin && (allowedOrigins.includes(requestOrigin) || allowedOrigins.includes("*"))) {
+      res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+    } else if (!requestOrigin) {
+      // Direct request (e.g. curl) — allow
+      res.setHeader("Access-Control-Allow-Origin", "*");
+    }
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Type, Accept-Ranges");
+
+    // Always advertise that we support range requests (needed for video seeking)
+    res.setHeader("Accept-Ranges", "bytes");
+
     // Forward status code from Google Drive (e.g. 206 Partial Content or 200 OK)
     res.status(driveRes.status);
 
@@ -351,7 +369,6 @@ export async function streamVideo(req, res) {
       "content-type",
       "content-length",
       "content-range",
-      "accept-ranges",
       "cache-control"
     ];
 
@@ -384,3 +401,4 @@ export async function streamVideo(req, res) {
     res.status(500).json({ success: false, error: "Failed to stream video from Google Drive." });
   }
 }
+

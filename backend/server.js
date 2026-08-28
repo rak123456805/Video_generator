@@ -40,9 +40,15 @@ app.use(
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type", "Range", "Accept", "Origin"],
+    exposedHeaders: ["Content-Length", "Content-Range", "Content-Type", "Accept-Ranges"],
     credentials: true,
+    optionsSuccessStatus: 200, // Some legacy browsers (IE11) choke on 204
   })
 );
+
+// Respond to all OPTIONS preflights explicitly (needed for cross-origin <video> with ?token= auth)
+app.options("*", cors());
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
