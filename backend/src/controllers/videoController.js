@@ -5,6 +5,7 @@ import { createJob, getJob, getAllJobs } from "../services/jobStore.js";
 import { runPipeline } from "../services/pipelineService.js";
 import { supabaseAdmin } from "../config/supabaseAdmin.js";
 import { getAuthClientFromEncryptedToken, listVideosInDrive } from "../services/googleDriveService.js";
+import { rankSentences, planScenesWithTextRank } from "../services/textRankService.js";
 
 /* ---------------- API HANDLERS ---------------- */
 
@@ -275,6 +276,45 @@ export const listVideos = async (req, res) => {
 
     res.json({ success: true, videos: deduplicated });
   } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/* ---------------- TEXTRANK ANALYSIS ENDPOINT ---------------- */
+
+/**
+ * POST /api/video/text-rank/analyze
+ * Standalone TextRank NLP endpoint for development, inspection, and testing.
+ */
+export const analyzeTextRank = async (req, res) => {
+  try {
+    const { text, sentences, scriptSlides, threshold, damping } = req.body;
+
+    if (scriptSlides && Array.isArray(scriptSlides)) {
+      const enrichedSlides = planScenesWithTextRank(scriptSlides, { threshold, damping });
+      return res.json({
+        success: true,
+        totalScenes: enrichedSlides.length,
+        enrichedSlides,
+      });
+    }
+
+    const input = text || sentences;
+    if (!input || (typeof input === "string" && !input.trim()) || (Array.isArray(input) && input.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide non-empty 'text', 'sentences', or 'scriptSlides' in the request body.",
+      });
+    }
+
+    const result = rankSentences(input, { threshold, damping });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (err) {
+    console.error("TextRank analyze error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

@@ -332,6 +332,74 @@ Create the required `google_drive_connections` table in your Supabase database b
 
 ---
 
+## 🔬 TextRank-Based Intelligent Scene Selection
+
+### 1. What is TextRank?
+**TextRank** is a graph-based ranking algorithm for Natural Language Processing (NLP) inspired by Google's PageRank algorithm (Mihalcea & Tarau, 2004). Rather than treating a script as an unordered sequence of words, TextRank models the relationship between sentences as an interconnected, weighted graph to quantify concept centrality and relative sentence importance.
+
+### 2. Why is TextRank Used in This Project?
+In educational video generation, AI models generate comprehensive scripts that vary in technical density across sections. TextRank acts as an algorithmic, explainable NLP prioritization layer that:
+- Identifies core concept sentences vs introductory/filler content.
+- Measures concept centrality across all generated scenes without deleting educational content.
+- Assigns importance scores to individual scenes to drive visual emphasis and asset allocation.
+
+### 3. Architecture & Pipeline
+
+```
+User Topic
+    ↓
+Google Gemini 2.5 Flash
+    ↓
+AI-Generated Script & Narration
+    ↓
+Sentence Segmentation & Preprocessing (Stopwords, Tokenization)
+    ↓
+TF-IDF Vector Numerical Representation
+    ↓
+Cosine Similarity Matrix Computation
+    ↓
+Weighted Sentence Graph Construction
+    ↓
+TextRank / PageRank Power Iteration (d = 0.85)
+    ↓
+Sentence Importance Scores & Key Concepts
+    ↓
+Intelligent Scene Planner (Visual Emphasis & Prioritization)
+    ↓
+Puppeteer Slide Rendering & TTS Audio Generation
+    ↓
+FFmpeg Video Merging & Google Drive Upload
+```
+
+### 4. Mathematical Foundation
+
+#### A. TF-IDF Representation
+Each preprocessed sentence $d$ in corpus $D$ is converted into a vector:
+$$\text{TF}(t, d) = \frac{f_{t, d}}{|d|}$$
+$$\text{IDF}(t, D) = \ln\left(1 + \frac{|D|}{1 + |\{d \in D : t \in d\}|}\right) + 1$$
+$$\vec{S}_d[t] = \text{TF}(t, d) \times \text{IDF}(t, D)$$
+
+#### B. Cosine Similarity Matrix
+The similarity weight $W_{ij}$ between two sentences $\vec{S}_i$ and $\vec{S}_j$ is computed as:
+$$\text{sim}(\vec{S}_i, \vec{S}_j) = \frac{\vec{S}_i \cdot \vec{S}_j}{\|\vec{S}_i\|_2 \times \|\vec{S}_j\|_2} = \frac{\sum_k \vec{S}_i[k] \vec{S}_j[k]}{\sqrt{\sum_k \vec{S}_i[k]^2} \sqrt{\sum_k \vec{S}_j[k]^2}}$$
+Edges are added to the sentence graph where $\text{sim}(\vec{S}_i, \vec{S}_j) \ge 0.05$.
+
+#### C. TextRank Power Iteration
+Vertex scores are iteratively converged using the standard damping factor $d = 0.85$:
+$$WS(V_i) = (1 - d) + d \sum_{V_j \in \text{In}(V_i)} \left( \frac{W_{ji}}{\sum_{V_k \in \text{Out}(V_j)} W_{jk}} \right) WS(V_j)$$
+
+### 5. Scene Planning & Visual Emphasis
+TextRank scores enrich each scene with:
+- `importanceScore`: Aggregated concept weight of the scene.
+- `textRankRank`: Relative importance rank across all scenes.
+- `visualEmphasis`: Categorization (`high`, `medium`, `standard`) informing slide styling and image generation prioritization.
+- `keyConcepts`: High-centrality summary sentences extracted for visual highlights.
+
+### 6. Academic Explanation
+> *"We use the TextRank graph-based NLP algorithm to rank sentences and identify important concepts in the AI-generated script. Sentence similarity is calculated using cosine similarity over TF-IDF representations, which is used to construct a weighted sentence graph. TextRank then assigns an importance score to each sentence. These scores are used by our scene-planning component to prioritize important concepts and improve the relevance and visual organization of generated video scenes."*
+
+---
+
 ## 📝 License
 
 ## 👨‍💻 Author
