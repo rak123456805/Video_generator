@@ -77,13 +77,14 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
   }
 
   const token = session?.access_token || '';
+  const isLocalDev = BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
 
   // Build video list from backend (source of truth) + localStorage (supplement)
   const backendMapped = backendVideos.map((v, index) => {
     const hasLocalCopy = v.finalVideo && v.finalVideo.startsWith('/generated');
     const isDriveVideo = v.driveUploaded && v.driveFileId;
     
-    const finalVideoPath = hasLocalCopy
+    const finalVideoPath = (isLocalDev && hasLocalCopy)
       ? v.finalVideo
       : isDriveVideo
         ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
@@ -111,7 +112,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
       const hasLocalCopy = v.videoUrl && v.videoUrl.includes('/generated');
       const isDriveVideo = v.driveUploaded && v.driveFileId;
       
-      const finalUrl = hasLocalCopy
+      const finalUrl = (isLocalDev && hasLocalCopy)
         ? v.videoUrl
         : isDriveVideo
           ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
