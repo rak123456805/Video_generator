@@ -17,13 +17,16 @@ import { PrivacyPage } from './components/PrivacyPage';
 export default function App() {
   const [currentPage, setCurrentPage] = useState<string>(() => {
     const path = window.location.pathname;
+    const params = new URLSearchParams(window.location.search);
+    const pageParam = params.get('page');
+
     if (path === '/auth/callback') return 'auth/callback';
     if (path === '/privacy') return 'privacy';
     if (path === '/signin') return 'signin';
     if (path === '/signup') return 'signup';
     if (path === '/forgot-password') return 'forgot-password';
     if (path === '/reset-password') return 'reset-password';
-    if (path === '/dashboard') return 'dashboard';
+    if (path === '/dashboard' || pageParam === 'dashboard') return 'dashboard';
     return 'home';
   });
 
@@ -44,10 +47,13 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
+      const params = new URLSearchParams(window.location.search);
+      const pageParam = params.get('page');
+
       if (path === '/privacy') setCurrentPage('privacy');
       else if (path === '/signin') setCurrentPage('signin');
       else if (path === '/signup') setCurrentPage('signup');
-      else if (path === '/dashboard') setCurrentPage('dashboard');
+      else if (path === '/dashboard' || pageParam === 'dashboard') setCurrentPage('dashboard');
       else if (path === '/forgot-password') setCurrentPage('forgot-password');
       else if (path === '/reset-password') setCurrentPage('reset-password');
       else if (path === '/auth/callback') setCurrentPage('auth/callback');

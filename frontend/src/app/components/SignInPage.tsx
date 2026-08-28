@@ -32,14 +32,6 @@ export function SignInPage({ onNavigate }: SignInPageProps) {
     }
   };
 
-  const handleOAuthSignIn = async (provider: 'google' | 'github') => {
-    setError('');
-    const { error } = await signInWithOAuth(provider);
-    if (error) {
-      setError(error.message);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-950 text-white flex flex-col font-sans selection:bg-purple-500 selection:text-white">
       <Navbar currentPage="signin" onNavigate={onNavigate} />
@@ -145,32 +137,6 @@ export function SignInPage({ onNavigate }: SignInPageProps) {
                 {!loading && <ArrowRight className="w-5 h-5" />}
               </motion.button>
             </form>
-
-            <div className="mt-8">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-purple-500/20"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase tracking-widest">
-                  <span className="px-3 bg-[#0f051d] text-slate-500">Or continue with</span>
-                </div>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleOAuthSignIn('google')}
-                  className="py-3 px-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all"
-                >
-                  Google
-                </button>
-                <button
-                  onClick={() => handleOAuthSignIn('github')}
-                  className="py-3 px-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white text-xs font-semibold flex items-center justify-center gap-2 transition-all"
-                >
-                  GitHub
-                </button>
-              </div>
-            </div>
 
             <div className="mt-8 text-center text-xs text-slate-400">
               Don't have an account?{' '}

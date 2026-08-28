@@ -13,7 +13,7 @@
 import { Session } from "@supabase/supabase-js";
 
 const getBaseUrl = (): string => {
-  let url = (import.meta as any).env.VITE_API_URL || "http://localhost:5000";
+  let url = import.meta.env.VITE_API_URL || "http://localhost:5000";
   if (url.endsWith("/")) url = url.slice(0, -1);
   return url;
 };

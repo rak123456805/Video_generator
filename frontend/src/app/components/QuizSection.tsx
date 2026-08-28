@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
-import { Brain, Loader2, CheckCircle2, XCircle, ChevronRight, ChevronLeft, RotateCcw } from "lucide-react";
+import { Brain, Loader2, CheckCircle2, XCircle, ChevronRight, ChevronLeft, RotateCcw, Video, Play } from "lucide-react";
 import apiClient from "../../api/client";
 import { useVideo } from "../contexts/VideoContext";
+import { useAuth } from "../contexts/AuthContext";
+import { saveQuizResult, getQuizResults } from "../../api/quizApi";
 
 interface QuizQuestion {
     question: string;
@@ -17,14 +19,130 @@ interface QuizSectionProps {
     language: string;
 }
 
-export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps) {
-    const { videoData, setVideoData } = useVideo();
+export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideoSlides, language }: QuizSectionProps) {
+    const { recentVideos, videoData, setVideoData } = useVideo();
+    const { user, session } = useAuth();
+    const currentUserId = user?.id || null;
+    const token = session?.access_token || '';
+
+    const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+    const ensureAbsoluteUrl = (url: string) => {
+        if (!url) return '';
+        let cleanUrl = url;
+        if (cleanUrl.startsWith('http://localhost:5173')) {
+            cleanUrl = cleanUrl.replace('http://localhost:5173', '');
+        }
+        if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+            return cleanUrl;
+        }
+        const cleanPath = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+        const base = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+        return `${base}${cleanPath}`;
+    };
+
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState<(number | null)[]>([]);
     const [submittedQuestions, setSubmittedQuestions] = useState<boolean[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [quizCompleted, setQuizCompleted] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [history, setHistory] = useState<any[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+
+    const [backendVideos, setBackendVideos] = useState<any[]>([]);
+    const [videosLoading, setVideosLoading] = useState(false);
+
+    // Fetch completed backend videos
+    useEffect(() => {
+        setVideosLoading(true);
+        apiClient.get('/video/list')
+            .then((res) => {
+                if (res.data?.videos) setBackendVideos(res.data.videos);
+                setVideosLoading(false);
+            })
+            .catch(() => {
+                setVideosLoading(false);
+            });
+    }, []);
+
+    // Fetch quiz history on mount & when a quiz is completed
+    useEffect(() => {
+        setHistoryLoading(true);
+        getQuizResults()
+            .then((data) => {
+                setHistory(data);
+                setHistoryLoading(false);
+            })
+            .catch((err) => {
+                console.error("Failed to load quiz results:", err);
+                setHistoryLoading(false);
+            });
+    }, [quizCompleted, videoData.quiz]);
+
+    // Construct combined generatedVideos array (identical to DashboardPage.tsx)
+    const backendMapped = backendVideos.map((v, index) => {
+        const hasLocalCopy = v.finalVideo && v.finalVideo.startsWith('/generated');
+        const isDriveVideo = v.driveUploaded && v.driveFileId;
+        
+        const finalVideoPath = hasLocalCopy
+            ? v.finalVideo
+            : isDriveVideo
+                ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
+                : v.finalVideo;
+
+        return {
+            id: `backend-${v.jobId || index}`,
+            title: v.topic || 'Untitled Video',
+            duration: v.isFullCourse ? `Part ${v.part}` : '15 min',
+            date: new Date(v.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            views: 'New',
+            videoUrl: ensureAbsoluteUrl(finalVideoPath),
+            driveFileUrl: v.driveFileUrl || null,
+            driveUploaded: v.driveUploaded || false,
+            topic: v.topic || 'Untitled Video',
+            jobId: v.jobId,
+            createdAt: v.createdAt,
+            mode: v.mode,
+            isFullCourse: v.isFullCourse,
+            part: v.part,
+            scriptSlides: v.scriptSlides
+        };
+    });
+
+    const backendJobIds = new Set(backendVideos.map((v) => v.jobId));
+    const localOnlyMapped = recentVideos
+        .filter((v) => !!v.videoUrl && !backendJobIds.has(v.jobId as string) && (v.userId === currentUserId || (!v.userId && !currentUserId)))
+        .map((v, index) => {
+            const hasLocalCopy = v.videoUrl && v.videoUrl.includes('/generated');
+            const isDriveVideo = v.driveUploaded && v.driveFileId;
+            
+            const finalUrl = hasLocalCopy
+                ? v.videoUrl
+                : isDriveVideo
+                    ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
+                    : v.videoUrl;
+
+            return {
+                id: `local-${index}`,
+                title: v.topic || 'Untitled Video',
+                duration: v.isFullCourse ? `Part ${v.currentPart}` : '15 min',
+                date: new Date(v.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+                views: 'New',
+                videoUrl: ensureAbsoluteUrl(finalUrl),
+                driveFileUrl: v.driveFileUrl || null,
+                driveUploaded: v.driveUploaded || false,
+                topic: v.topic || 'Untitled Video',
+                jobId: v.jobId,
+                createdAt: v.timestamp,
+                mode: v.isFullCourse ? 'FULL' : 'CRASH',
+                isFullCourse: v.isFullCourse,
+                part: v.currentPart,
+                scriptSlides: v.scriptSlides,
+            };
+        });
+
+    const generatedVideos = [...backendMapped, ...localOnlyMapped];
 
     // Load quiz from context if available
     const questions = (videoData.quiz as QuizQuestion[]) || [];
@@ -45,71 +163,46 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
     const allAnswered = selectedAnswers.every(a => a !== null);
     const allSubmitted = submittedQuestions.every(s => s);
 
-    /* ---------------- GENERATE / SHOW QUIZ ---------------- */
-    const handleGenerateQuiz = async () => {
-        // If quiz already exists in context, just show it
-        if (videoData.quiz && Array.isArray(videoData.quiz) && videoData.quiz.length > 0) {
-            setVideoData({ showQuiz: true });
-            setCurrentQuestionIndex(0);
-            setSelectedAnswers(new Array(videoData.quiz.length).fill(null));
-            setSubmittedQuestions(new Array(videoData.quiz.length).fill(false));
-            setQuizCompleted(false);
-            return;
-        }
-
-        // Try to fetch quiz by jobId (read-only, never regenerates)
-        if (videoData.jobId) {
-            setIsGenerating(true);
-            setError(null);
-            try {
-                const res = await apiClient.get(`/video/quiz/${videoData.jobId}`);
-                if (res.data.quiz_status === "completed" && res.data.questions) {
-                    setVideoData({
-                        quiz: res.data.questions,
-                        showQuiz: true,
-                    });
-                    setCurrentQuestionIndex(0);
-                    setSelectedAnswers(new Array(res.data.questions.length).fill(null));
-                    setSubmittedQuestions(new Array(res.data.questions.length).fill(false));
-                    setQuizCompleted(false);
-                    setIsGenerating(false);
-                    return;
-                } else if (res.data.quiz_status === "processing") {
-                    setError("Quiz is still being generated. Please wait a moment and try again.");
-                    setIsGenerating(false);
-                    return;
-                } else {
-                    setError("Quiz generation failed for this video. You can try generating a new one.");
-                    setIsGenerating(false);
-                    return;
-                }
-            } catch (err) {
-                console.error("Failed to fetch quiz by jobId:", err);
-                // Fall through to legacy path
-            }
-            setIsGenerating(false);
-        }
-
-        // Legacy fallback: generate via API if no jobId and no quiz
-        if (!topic || topic.trim() === '') {
-            setError("No video content available. Please generate a video first.");
-            return;
-        }
-
+    /* ---------------- GENERATE / SHOW QUIZ FOR SELECTED VIDEO ---------------- */
+    const handleStartQuizForVideo = async (video: any) => {
         setIsGenerating(true);
         setError(null);
 
+        const quizJobId = video.jobId;
+        const quizTopic = video.topic || video.title;
+
+        try {
+            // 1. Try fetching existing quiz by jobId
+            const res = await apiClient.get(`/video/quiz/${quizJobId}`);
+            if (res.data.quiz_status === "completed" && res.data.questions) {
+                setVideoData({
+                    quiz: res.data.questions,
+                    quizId: quizJobId,
+                    showQuiz: true,
+                });
+                setCurrentQuestionIndex(0);
+                setSelectedAnswers(new Array(res.data.questions.length).fill(null));
+                setSubmittedQuestions(new Array(res.data.questions.length).fill(false));
+                setQuizCompleted(false);
+                setIsGenerating(false);
+                return;
+            }
+        } catch (err) {
+            console.warn("Failed to fetch existing quiz, attempting generation:", err);
+        }
+
+        // 2. Generate on-the-fly if not found
         try {
             const res = await apiClient.post("/quiz/generate", {
-                topic,
-                scriptSlides: scriptSlides || [],
-                language,
+                topic: quizTopic,
+                scriptSlides: video.scriptSlides || [],
+                language: language || 'en',
                 questionCount: 10
             });
 
-            // Save quiz to context (localStorage)
             setVideoData({
                 quiz: res.data.questions,
+                quizId: res.data.quizId || quizJobId,
                 showQuiz: true
             });
 
@@ -119,7 +212,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
             setQuizCompleted(false);
         } catch (err: any) {
             console.error(err);
-            setError(err.response?.data?.message || "Failed to generate quiz. Please try again.");
+            setError(err.response?.data?.message || "Failed to generate quiz for this video.");
         } finally {
             setIsGenerating(false);
         }
@@ -158,8 +251,18 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
         setCurrentQuestionIndex(index);
     };
 
-    const handleFinishQuiz = () => {
+    const handleFinishQuiz = async () => {
         setQuizCompleted(true);
+        const finalQuizId = videoData.quizId || videoData.jobId;
+        if (finalQuizId) {
+            try {
+                const quizScore = calculateScore();
+                await saveQuizResult(finalQuizId, quizScore, questions.length);
+                console.log("✅ Quiz result saved successfully to Supabase");
+            } catch (err) {
+                console.warn("⚠️ Failed to save quiz result:", err);
+            }
+        }
     };
 
     /* ---------------- RETRY QUIZ ---------------- */
@@ -190,40 +293,128 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
     /* ---------------- RENDER: INITIAL STATE ---------------- */
     if (questions.length === 0 && !isGenerating) {
         return (
-            <div className="max-w-4xl mx-auto bg-[#0b031a]/60 border border-purple-500/20 rounded-2xl p-8 shadow-xl">
-                <div className="flex items-center gap-3 mb-6">
-                    <Brain className="w-6 h-6 text-purple-400 animate-pulse" />
-                    <h3 className="text-2xl font-bold text-white">Quiz Generator</h3>
+            <div className="max-w-4xl mx-auto space-y-8">
+                {/* Quiz Library Header */}
+                <div>
+                    <h2 className="text-2xl font-black text-white flex items-center gap-2 mb-2">
+                        <Brain className="w-7 h-7 text-purple-400 animate-pulse" />
+                        AI Quiz Library
+                    </h2>
+                    <p className="text-slate-400 text-sm">
+                        Test your comprehension by taking an AI-generated quiz on any of your created videos below.
+                    </p>
                 </div>
 
+                {/* Error Banner */}
                 {error && (
-                    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
                         <p className="text-red-400 text-sm font-medium">{error}</p>
                     </div>
                 )}
 
-                <p className="text-slate-300 mb-6 leading-relaxed">
-                    Test your knowledge with an AI-generated quiz based on your video content.
-                </p>
+                {/* Video Selection Grid */}
+                <div>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Choose a Video</h3>
+                    
+                    {videosLoading ? (
+                        <div className="flex flex-col items-center justify-center py-12 bg-[#0d041c]/60 border border-purple-500/25 rounded-2xl">
+                            <Loader2 className="w-8 h-8 text-purple-400 animate-spin mb-3" />
+                            <p className="text-slate-400 text-sm">Loading your video library...</p>
+                        </div>
+                    ) : generatedVideos.length === 0 ? (
+                        <div className="text-center py-12 bg-[#0d041c]/60 border border-purple-500/25 rounded-2xl">
+                            <Video className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                            <h3 className="text-white font-bold text-lg mb-1">No Videos Found</h3>
+                            <p className="text-slate-400 text-sm max-w-sm mx-auto mb-5">
+                                Generate a video course first to unlock personalized, AI-powered interactive quizzes!
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid md:grid-cols-2 gap-4">
+                            {generatedVideos.map((video) => (
+                                <div 
+                                    key={video.id} 
+                                    className="bg-[#0b031a]/60 border border-purple-500/20 rounded-2xl p-5 hover:border-purple-400/50 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] transition-all duration-300 flex flex-col justify-between"
+                                >
+                                    <div className="mb-4">
+                                        <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/10 text-purple-300 border border-purple-500/20 mb-2">
+                                            {video.mode} Course
+                                        </span>
+                                        <h4 className="text-white font-bold text-base line-clamp-2" title={video.topic}>
+                                            {video.topic || video.title}
+                                        </h4>
+                                        <p className="text-slate-500 text-xs mt-1">
+                                            Generated: {video.date}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleStartQuizForVideo(video)}
+                                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-[#301979] to-[#6331E8] hover:from-[#3a2091] hover:to-[#733be8] shadow-[0_4px_15px_rgba(48,25,121,0.3)] transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+                                    >
+                                        <Play className="w-3.5 h-3.5 fill-current" />
+                                        Take Quiz
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
 
-                <button
-                    onClick={handleGenerateQuiz}
-                    disabled={!topic || topic.trim() === ''}
-                    className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 
-                     hover:from-purple-700 hover:to-indigo-700 text-white p-4 rounded-xl
-                     font-semibold text-lg transition-all duration-300
-                     shadow-lg hover:shadow-xl transform hover:-translate-y-1
-                     disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                    <Brain className="inline mr-2" />
-                    {hasExistingQuiz ? "Show Quiz" : "Generate Quiz"}
-                </button>
+                {/* History Section */}
+                <div className="bg-[#0b031a]/60 border border-purple-500/20 rounded-2xl p-8 shadow-xl">
+                    <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                        <Brain className="w-5 h-5 text-purple-400" />
+                        Quiz Attempt History
+                    </h3>
 
-                {(!topic || topic.trim() === '') && (
-                    <p className="text-sm text-slate-500 mt-4 text-center">
-                        Generate a video first to create a quiz
-                    </p>
-                )}
+                    {historyLoading ? (
+                        <div className="flex justify-center py-6">
+                            <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                        </div>
+                    ) : history.length === 0 ? (
+                        <p className="text-slate-500 text-sm text-center py-4">
+                            No quizzes completed yet. Complete a quiz to view your score history.
+                        </p>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-purple-500/10 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                        <th className="pb-3 pr-4">Topic</th>
+                                        <th className="pb-3 px-4">Date</th>
+                                        <th className="pb-3 px-4 text-center">Score</th>
+                                        <th className="pb-3 pl-4 text-right">Grade</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-purple-500/5">
+                                    {history.map((h, i) => (
+                                        <tr key={h.id || i} className="text-sm text-slate-300 hover:bg-white/5 transition-colors">
+                                            <td className="py-4 pr-4 font-medium text-white truncate max-w-xs">
+                                                {h.quizzes?.topic || 'General Quiz'}
+                                            </td>
+                                            <td className="py-4 px-4 text-slate-400">
+                                                {new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </td>
+                                            <td className="py-4 px-4 text-center font-bold text-purple-300">
+                                                {h.score} / {h.total_questions} ({h.percentage}%)
+                                            </td>
+                                            <td className="py-4 pl-4 text-right">
+                                                <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                                    h.grade === 'A+' || h.grade === 'A' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                                    h.grade === 'B' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                                    h.grade === 'C' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                                                    'bg-red-500/10 text-red-400 border border-red-500/20'
+                                                }`}>
+                                                    {h.grade}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }
@@ -335,7 +526,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                     <button
                         onClick={() => {
                             // Force regenerate a new quiz via API
-                            setVideoData({ quiz: null, showQuiz: false });
+                            setVideoData({ quiz: null, quizId: null, showQuiz: false });
                             setSelectedAnswers([]);
                             setSubmittedQuestions([]);
                             setQuizCompleted(false);
@@ -346,7 +537,7 @@ export function QuizSection({ topic, scriptSlides, language }: QuizSectionProps)
                        transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
                     >
                         <Brain className="w-4 h-4" />
-                        Generate New Quiz
+                        Quiz Library
                     </button>
                 </div>
             </div>

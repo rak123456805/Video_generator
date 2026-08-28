@@ -19,7 +19,21 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
   const [backendVideos, setBackendVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const BASE_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000';
+  const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  const ensureAbsoluteUrl = (url: string) => {
+    if (!url) return '';
+    let cleanUrl = url;
+    if (cleanUrl.startsWith('http://localhost:5173')) {
+      cleanUrl = cleanUrl.replace('http://localhost:5173', '');
+    }
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+      return cleanUrl;
+    }
+    const cleanPath = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+    const base = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+    return `${base}${cleanPath}`;
+  };
 
   // Fetch all completed videos from backend on mount
   useEffect(() => {
@@ -66,10 +80,14 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
 
   // Build video list from backend (source of truth) + localStorage (supplement)
   const backendMapped = backendVideos.map((v, index) => {
+    const hasLocalCopy = v.finalVideo && v.finalVideo.startsWith('/generated');
     const isDriveVideo = v.driveUploaded && v.driveFileId;
-    const finalVideoPath = isDriveVideo
-      ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
-      : v.finalVideo;
+    
+    const finalVideoPath = hasLocalCopy
+      ? v.finalVideo
+      : isDriveVideo
+        ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
+        : v.finalVideo;
 
     return {
       id: `backend-${v.jobId || index}`,
@@ -77,7 +95,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
       duration: v.isFullCourse ? `Part ${v.part}` : '15 min',
       date: new Date(v.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       views: 'New',
-      videoUrl: `${BASE_URL}${finalVideoPath}`,
+      videoUrl: ensureAbsoluteUrl(finalVideoPath),
       driveFileUrl: v.driveFileUrl || null,
       driveUploaded: v.driveUploaded || false,
       topic: v.topic || 'Untitled Video',
@@ -90,10 +108,14 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
   const localOnlyMapped = recentVideos
     .filter((v) => !!v.videoUrl && !backendJobIds.has(v.jobId as string) && (v.userId === currentUserId || (!v.userId && !currentUserId)))
     .map((v, index) => {
+      const hasLocalCopy = v.videoUrl && v.videoUrl.includes('/generated');
       const isDriveVideo = v.driveUploaded && v.driveFileId;
-      const finalUrl = isDriveVideo
-        ? `${BASE_URL}/api/google-drive/stream/${v.driveFileId}?token=${token}`
-        : v.videoUrl;
+      
+      const finalUrl = hasLocalCopy
+        ? v.videoUrl
+        : isDriveVideo
+          ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
+          : v.videoUrl;
 
       return {
         id: `local-${index}`,
@@ -101,7 +123,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
         duration: v.isFullCourse ? `Part ${v.currentPart}` : '15 min',
         date: new Date(v.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         views: 'New',
-        videoUrl: finalUrl as string,
+        videoUrl: ensureAbsoluteUrl(finalUrl),
         driveFileUrl: v.driveFileUrl || null,
         driveUploaded: v.driveUploaded || false,
         topic: v.topic || 'Untitled Video',
