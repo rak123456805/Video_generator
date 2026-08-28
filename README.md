@@ -7,68 +7,69 @@ An intelligent video course generator that creates educational videos with AI-ge
 
 ## 🌟 Features
 
-### 📹 Video Generation
+### 📹 Video Generation & Intelligent Scene Planning
 - **AI-Powered Script Generation** using Google Gemini 2.5 Flash
-- **Two Modes**:
+- **TextRank Algorithmic NLP Engine** for intelligent scene planning, concept centrality ranking, and visual emphasis prioritization
+- **Two Generation Modes**:
   - **Crash Course**: 15-minute quick overview
   - **Full Course**: 30-60 minute comprehensive lessons (part-by-part)
-- **Automated Slide Creation** with visual examples
+- **Automated Slide Creation** with dynamic HTML templates and Puppeteer rendering
 - **High-Quality TTS** using Microsoft Edge TTS
 - **Multi-Language Support**: English, Hindi, Kannada, Tamil, Telugu, Malayalam, Bengali, Marathi
+- **Asynchronous Pipeline** with real-time per-component progress tracking
 
-### 🧠 Quiz Generation
-- **AI-Generated Questions** based on video content
-- **10 Multiple-Choice Questions** per quiz
-- **Difficulty Levels**: Easy (30%), Medium (50%), Hard (20%)
-- **Instant Feedback** with detailed explanations
-- **Score Grading**: A+ to D grading system
-- **Multi-Language Support**: All 8 supported languages
+### ☁️ Per-User Google Drive Cloud Storage
+- **Direct Cloud Upload**: Generated videos automatically save to each user's personal Google Drive in a dedicated `TextToVideo` folder
+- **Seamless Streaming**: Blob URL video player with chunked streaming and CORS handling
+- **AES-256-CBC Encryption** for secure storage of OAuth refresh tokens
 
-### 🎨 Modern UI
-- **Dark Mode** support
-- **Responsive Design** for all screen sizes
-- **Purple/Indigo Gradient** theme
-- **Real-time Progress** tracking
-- **Interactive Dashboard** with multiple tabs
+### 🧠 Interactive Quizzes & Analytics
+- **AI-Generated Questions** automatically tailored to video script content
+- **10 Multiple-Choice Questions** per quiz with balanced difficulty (Easy 30%, Medium 50%, Hard 20%)
+- **Score Analytics & History**: Persistent quiz results, grade tracking (A+ to D), and accuracy statistics in Supabase
+- **Instant Explanations** for every question
 
-### 🔐 Authentication
-- **Email/Password** authentication
-- **OAuth Support**: Google and GitHub sign-in
-- **Email Verification** for new accounts
-- **Password Reset** functionality
-- **Protected Routes** for secure access
-- **Session Management** with auto-refresh
+### 🎨 Modern UI & Authentication
+- **Dark Mode & Purple Gradient** aesthetic
+- **Responsive Layout** for desktop, tablet, and mobile
+- **Supabase Authentication**: Email/Password and OAuth (Google, GitHub)
+- **Interactive Dashboard**: Tabs for Generation, Video Library, Interactive Quizzes, Analytics, and Google Drive Cloud integration
 
 ## 🚀 Tech Stack
 
 ### Backend
-- **Node.js** with Express
-- **Google Gemini AI** for content generation
-- **Microsoft Edge TTS** for voice synthesis
-- **Puppeteer** for slide rendering
-- **FFmpeg** for video processing
+- **Node.js & Express**
+- **Google Gemini 2.5 Flash** for content and quiz generation
+- **TextRank NLP Engine** (Pure JS implementation with TF-IDF, Cosine Similarity, and PageRank power iteration)
+- **Microsoft Edge TTS** (`edge-tts` Python engine) for natural voice synthesis
+- **Puppeteer** (Chrome) for high-definition slide generation
+- **FFmpeg & Fluent-FFmpeg** for slide sequencing and audio/video merging
+- **Google Drive API (v3)** & **Crypto (AES-256-CBC)** for cloud storage and token security
+- **Supabase Admin SDK** with PostgreSQL for persistent storage
 
 ### Frontend
 - **React** with TypeScript
-- **Next.js** framework
-- **Tailwind CSS** for styling
-- **Lucide React** for icons
-- **Axios** for API calls
-- **Supabase** for authentication
+- **Next.js / Vite** with modern Tailwind CSS & Theme Tokens
+- **Framer Motion** for sleek micro-animations
+- **Lucide React** for UI icons
+- **Axios** with JWT interceptors
+- **Supabase JS Client** for auth & session management
 
 ## 📋 Prerequisites
 
 - **Node.js** 18+ and npm
 - **Python** 3.7+ (for Edge TTS)
-- **FFmpeg** installed and in PATH
+- **FFmpeg** installed and in system PATH
 - **Google Gemini API Key**
+- **Supabase Project** (Database & Auth)
+- **Google Cloud Console OAuth 2.0 Credentials** (Optional, for Google Drive upload)
 
 ## 🛠️ Installation
 
 ### 1. Clone Repository
 ```bash
 git clone https://github.com/rak123456805/Text_to_video_Generator.git
-cd "AI Video Course Generator"
+cd Text_to_video_Generator
 ```
 
 ### 2. Backend Setup
@@ -78,10 +79,21 @@ npm install
 pip install edge-tts
 ```
 
-Create `.env` file:
+Create `backend/.env`:
 ```env
 PORT=5000
-GOOGLE_API_KEY=your_gemini_api_key_here
+GOOGLE_API_KEY=your_gemini_api_key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Google Drive OAuth (Optional)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:5000/api/google-drive/callback
+GOOGLE_DRIVE_ENCRYPTION_KEY=your_64_character_hex_key
+
+FRONTEND_URL=http://localhost:5173
+CORS_ORIGINS=http://localhost:5173
 ```
 
 ### 3. Frontend Setup
@@ -90,17 +102,12 @@ cd ../frontend
 npm install
 ```
 
-Create `.env` file:
+Create `frontend/.env`:
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key
+VITE_API_URL=http://localhost:5000/api
 ```
-
-Get your Supabase credentials from:
-1. Go to [Supabase](https://supabase.com)
-2. Create a new project (or use existing)
-3. Go to Project Settings → API
-4. Copy the Project URL and anon/public key
 
 ### 4. Install FFmpeg
 - **Windows**: Download from [ffmpeg.org](https://ffmpeg.org/download.html) and add to PATH
@@ -114,64 +121,80 @@ Get your Supabase credentials from:
 cd backend
 npm run dev
 ```
-Server runs on `http://localhost:5000`
+Runs on `http://localhost:5000`
 
 ### Start Frontend
 ```bash
 cd frontend
 npm run dev
 ```
-App runs on `http://localhost:3000`
+Runs on `http://localhost:5173`
 
-### Generate a Video
-1. Open `http://localhost:3000`
-2. Enter a topic (e.g., "Introduction to Python")
-3. Select duration (15 min, 30 min, or 1 hour)
-4. Choose language
-5. Click "Generate Lesson"
-6. Wait for video generation (2-5 minutes)
-
-### Take a Quiz
-1. After video generation, click "Quiz" in sidebar
-2. Click "Generate Quiz"
-3. Answer 10 questions
-4. View your score and review answers
+---
 
 ## 📁 Project Structure
 
 ```
-AI Video Course Generator/
+Text_to_video_Generator/
 ├── backend/
+│   ├── scripts/
+│   │   ├── ensureChrome.mjs          # Puppeteer browser validation
+│   │   └── test-textrank.js          # TextRank algorithm test suite
 │   ├── src/
+│   │   ├── config/
+│   │   │   ├── ffmpeg.js             # FFmpeg binary config
+│   │   │   └── supabaseAdmin.js      # Supabase admin client
 │   │   ├── controllers/
-│   │   │   ├── videoController.js    # Video generation logic
-│   │   │   └── quizController.js     # Quiz generation logic
-│   │   ├── services/
-│   │   │   ├── scriptService.js      # AI script generation
-│   │   │   ├── tts/
-│   │   │   │   └── index.js          # Edge TTS integration
-│   │   │   ├── slideService.js       # Slide rendering
-│   │   │   ├── videoService.js       # Video merging
-│   │   │   └── quizService.js        # Quiz generation
-│   │   └── routes/
-│   │       ├── videoRoutes.js
-│   │       └── quizRoutes.js
-│   ├── fonts/                        # Indian language fonts
-│   ├── generated/                    # Output videos
-│   └── server.js                     # Express server
+│   │   │   ├── videoController.js    # Video generation & TextRank endpoints
+│   │   │   ├── quizController.js     # Quiz generation, results & stats
+│   │   │   └── googleDriveController.js # Drive OAuth, uploads & streaming
+│   │   ├── middleware/
+│   │   │   └── authMiddleware.js     # Supabase JWT token verification
+│   │   ├── routes/
+│   │   │   ├── videoRoutes.js        # /api/video routes
+│   │   │   ├── quizRoutes.js         # /api/quiz routes
+│   │   │   └── googleDriveRoutes.js  # /api/google-drive routes
+│   │   └── services/
+│   │       ├── textRankService.js    # Pure TextRank NLP & Scene Planner
+│   │       ├── pipelineService.js    # Async generation orchestrator
+│   │       ├── scriptService.js      # Gemini script generation
+│   │       ├── slideService.js       # Puppeteer slide rendering
+│   │       ├── slideVideoService.js  # Slide-to-video compilation
+│   │       ├── videoMergeService.js  # FFmpeg audio/video merging
+│   │       ├── googleDriveService.js # Drive API v3 & token encryption
+│   │       ├── encryptionService.js  # AES-256-CBC token encryption
+│   │       ├── quizService.js        # Gemini quiz generation
+│   │       ├── jobStore.js           # In-memory async job manager
+│   │       └── tts/
+│   │           └── index.js          # Edge TTS multi-language voice engine
+│   ├── generated/                    # Temporary & cached output MP4s/slides
+│   └── server.js                     # Express app setup & CORS config
 │
-└── frontend/
-    ├── src/
-    │   └── app/
-    │       ├── components/
-    │       │   ├── DashboardPage.tsx
-    │       │   ├── GenerateVideoSection.tsx
-    │       │   ├── QuizSection.tsx
-    │       │   └── DashboardSidebar.tsx
-    │       └── styles/
-    │           └── theme.css
-    └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── api/
+│   │   │   ├── client.ts             # Axios client with auth interceptors
+│   │   │   ├── quizApi.ts            # Quiz submission & analytics API
+│   │   │   └── googleDriveApi.ts     # Drive connection & status API
+│   │   ├── app/
+│   │   │   ├── components/
+│   │   │   │   ├── DashboardPage.tsx # Main dashboard layout
+│   │   │   │   ├── GenerateVideoSection.tsx # Video prompt interface
+│   │   │   │   ├── RecentVideos.tsx  # Video library & Drive stream player
+│   │   │   │   ├── QuizSection.tsx   # Interactive quiz component
+│   │   │   │   └── AnalyticsSection.tsx # Quiz score trends & statistics
+│   │   │   └── contexts/
+│   │   │       ├── AuthContext.tsx   # User authentication context
+│   │   │       └── VideoContext.tsx  # Video state & history context
+│   │   └── styles/
+│   │       └── theme.css
+│   └── package.json
+│
+└── supabase/
+    └── migrations/                   # SQL migrations for connections & quizzes
 ```
+
+---
 
 ## 🌐 Supported Languages
 
@@ -186,85 +209,48 @@ AI Video Course Generator/
 | Bengali | bn | bn-IN-TanishaaNeural | ✅ |
 | Marathi | mr | mr-IN-AarohiNeural | ✅ |
 
+---
+
 ## 🎬 Video Generation Process
 
-1. **Topic Analysis** - Gemini AI analyzes topic feasibility
-2. **Script Generation** - AI creates structured educational script
-3. **Slide Creation** - Puppeteer renders slides with text and examples
-4. **Audio Generation** - Edge TTS converts narration to speech
-5. **Video Merging** - FFmpeg combines slides and audio
-6. **Output** - MP4 video ready for download
+1. **Topic Feasibility Check** - Gemini analyzes topic density and estimates course parts.
+2. **Script Generation** - Gemini creates structured scene narration and bullets.
+3. **TextRank NLP Scene Planning** - TextRank builds a TF-IDF cosine similarity graph, computes PageRank importance scores, ranks key concepts, and assigns visual emphasis tiers.
+4. **Slide Rendering** - Puppeteer renders high-resolution 720p slide frames.
+5. **Voice Synthesis** - Microsoft Edge TTS generates crystal-clear narration.
+6. **Video Merging** - FFmpeg calculates slide durations and merges audio + video into MP4.
+7. **Cloud Upload** - Video is automatically saved to the user's personal Google Drive folder.
 
-## 🧪 Quiz Generation Process
+---
 
-1. **Content Analysis** - AI analyzes video script content
-2. **Question Generation** - Creates 10 multiple-choice questions
-3. **Difficulty Distribution** - Balances easy, medium, and hard questions
-4. **Language Adaptation** - Generates questions in selected language
-5. **Explanation Creation** - Provides detailed explanations for each answer
+## 📊 API Endpoints Reference
 
-## 🔧 Configuration
+### Video Generation (`/api/video`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/video/analyze` | Analyze topic feasibility and part estimation |
+| `POST` | `/api/video/crash-course` | Start 15-minute crash course generation |
+| `POST` | `/api/video/full-course/part` | Start full course part generation |
+| `GET` | `/api/video/status/:jobId` | Poll per-component status of active job |
+| `GET` | `/api/video/list` | List completed local and Google Drive videos |
+| `POST` | `/api/video/text-rank/analyze` | Standalone TextRank NLP analysis testing endpoint |
 
-### Video Settings
-- **Slide Resolution**: 1280x720 (720p)
-- **Audio Format**: MP3, 24kHz, 48kbps
-- **Video Format**: MP4, H.264 codec
-- **Frame Rate**: 30 fps
+### Quiz & Analytics (`/api/quiz`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/quiz/:jobId` | Fetch quiz for a specific video job |
+| `POST` | `/api/quiz/result` | Save user quiz answers, score, and grade |
+| `GET` | `/api/quiz/results` | Fetch user's quiz attempt history |
+| `GET` | `/api/quiz/stats` | Fetch aggregate quiz analytics (quizzes taken, avg score, grade distribution) |
 
-### Quiz Settings
-- **Questions per Quiz**: 10
-- **Options per Question**: 4 (A, B, C, D)
-- **Difficulty Distribution**: 30% Easy, 50% Medium, 20% Hard
-
-## 🐛 Troubleshooting
-
-### Edge TTS Not Working
-```bash
-# Reinstall edge-tts
-pip uninstall edge-tts
-pip install edge-tts
-
-# Verify installation
-python -m edge_tts --version
-```
-
-### FFmpeg Not Found
-- Ensure FFmpeg is installed and added to system PATH
-- Restart terminal after installation
-- Test: `ffmpeg -version`
-
-### Gemini API Errors
-- Check API key in `.env` file
-- Verify API quota at [Google AI Studio](https://makersuite.google.com/app/apikey)
-- If 503 error, wait and retry (API overloaded)
-
-### Quiz Generation Fails
-- Usually due to Gemini API being overloaded (503 error)
-- Wait a few minutes and try again
-- Check internet connection
-
-## 📊 API Endpoints
-
-### Video Generation
-```
-POST /api/video/analyze
-POST /api/video/crash-course
-POST /api/video/full-course/part
-```
-
-### Quiz Generation
-```
-POST /api/quiz/generate
-```
-
-## 🎨 UI Components
-
-- **Dashboard** - Main navigation and overview
-- **Generate Video** - Video creation interface
-- **Videos** - Library of generated videos
-- **Quiz** - Interactive quiz interface
-- **Analytics** - Usage statistics (coming soon)
-- **Settings** - App configuration (coming soon)
+### Google Drive Storage (`/api/google-drive`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/google-drive/auth-url` | Get Google OAuth 2.0 consent URL |
+| `GET` | `/api/google-drive/callback` | OAuth redirect callback (exchanges code & encrypts token) |
+| `GET` | `/api/google-drive/status` | Check if user has active Google Drive connection |
+| `GET` | `/api/google-drive/stream/:fileId` | Stream video file from Drive with HTTP Range support |
+| `POST` | `/api/google-drive/disconnect` | Revoke and delete user's Google Drive connection |
 
 ## 🔐 Environment Variables
 
