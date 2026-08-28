@@ -24,9 +24,8 @@ export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideo
     const { user, session } = useAuth();
     const currentUserId = user?.id || null;
     const token = session?.access_token || '';
-    const isLocalDev = BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
-
     const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const isLocalDev = BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
 
     const ensureAbsoluteUrl = (url: string) => {
         if (!url) return '';

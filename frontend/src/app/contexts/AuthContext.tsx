@@ -41,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             })
             .catch((err) => {
                 console.warn('Auth session check warning:', err);
+                dispatch(setUser(null));
                 setLoadingState(false);
             });
 
