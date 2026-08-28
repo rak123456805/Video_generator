@@ -402,6 +402,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
               <VideoPlayerWithFallback
                 src={selectedVideo.url}
                 driveFileUrl={selectedVideo.driveFileUrl}
+                token={token}
               />
             </motion.div>
           </motion.div>
@@ -413,43 +414,143 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
   function handleCloseVideo() { setSelectedVideo(null); }
 }
 
-// ── Inline player with error fallback ─────────────────────────────────────
-function VideoPlayerWithFallback({ src, driveFileUrl }: { src: string; driveFileUrl?: string | null }) {
+// ── Blob-based video player — bypasses all CORS restrictions ─────────────
+// fetch() supports Authorization headers; <video src="blob:"> is always same-origin.
+function VideoPlayerWithFallback({
+  src,
+  driveFileUrl,
+  token,
+}: {
+  src: string;
+  driveFileUrl?: string | null;
+  token: string;
+}) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0); // 0-100
   const [errored, setErrored] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
+  useEffect(() => {
+    if (!src) { setErrored(true); return; }
+
+    let objectUrl = '';
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const headers: Record<string, string> = {};
+        // Use token in Authorization header (fetch supports this, unlike <video>)
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        const res = await fetch(src, { headers });
+
+        if (!res.ok) {
+          setErrorMsg(`Server returned ${res.status}`);
+          setErrored(true);
+          return;
+        }
+
+        // Stream with progress tracking
+        const contentLength = Number(res.headers.get('Content-Length') || 0);
+        const reader = res.body!.getReader();
+        const chunks: Uint8Array[] = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (cancelled) return;
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          if (contentLength > 0) {
+            setProgress(Math.round((received / contentLength) * 100));
+          } else {
+            // Unknown size — pulse progress
+            setProgress((p) => (p >= 90 ? 90 : p + 2));
+          }
+        }
+
+        const blob = new Blob(chunks, { type: res.headers.get('Content-Type') || 'video/mp4' });
+        objectUrl = URL.createObjectURL(blob);
+        setProgress(100);
+        setBlobUrl(objectUrl);
+      } catch (err: any) {
+        if (!cancelled) {
+          setErrorMsg(err?.message || 'Network error');
+          setErrored(true);
+        }
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [src, token]);
+
+  // ── Error state ──────────────────────────────────────────────────────────
   if (errored) {
     return (
-      <div className="w-full flex flex-col items-center justify-center py-16 gap-4"
-        style={{ background: '#0a0a0a', minHeight: '280px' }}>
+      <div
+        className="w-full flex flex-col items-center justify-center gap-4"
+        style={{ background: '#0a0a0a', minHeight: '320px' }}
+      >
         <AlertCircle className="w-12 h-12 text-amber-400" />
         <p className="text-slate-300 font-semibold text-lg">Unable to play video</p>
         <p className="text-slate-500 text-sm text-center max-w-xs">
-          The video stream is unavailable. This typically happens when the backend storage has been cleared.
+          {errorMsg || 'The video could not be loaded.'}
         </p>
         {driveFileUrl && (
           <a
             href={driveFileUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold transition-all"
+            className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold"
             style={{ background: 'linear-gradient(135deg, #7C3AED, #5B21B6)' }}
           >
-            <ExternalLink className="w-4 h-4" />
-            Watch on Google Drive
+            <ExternalLink className="w-4 h-4" /> Watch on Google Drive
           </a>
         )}
       </div>
     );
   }
 
+  // ── Loading / download progress ──────────────────────────────────────────
+  if (!blobUrl) {
+    return (
+      <div
+        className="w-full flex flex-col items-center justify-center gap-5"
+        style={{ background: '#0a0a0a', minHeight: '320px' }}
+      >
+        <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
+        <p className="text-slate-300 text-sm font-medium">
+          Loading video{progress > 0 && progress < 100 ? ` — ${progress}%` : '…'}
+        </p>
+        {/* Progress bar */}
+        <div className="w-64 h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(139,92,246,0.15)' }}>
+          <motion.div
+            className="h-full rounded-full"
+            style={{ background: 'linear-gradient(90deg, #7C3AED, #A855F7)' }}
+            initial={{ width: 0 }}
+            animate={{ width: `${Math.max(progress, 5)}%` }}
+            transition={{ duration: 0.3 }}
+          />
+        </div>
+        <p className="text-slate-600 text-xs">Downloading from Google Drive…</p>
+      </div>
+    );
+  }
+
+  // ── Video player (blob URL — no CORS restrictions) ───────────────────────
   return (
     <video
-      src={src}
+      src={blobUrl}
       controls
       autoPlay
-      crossOrigin="use-credentials"
       className="w-full h-auto max-h-[80vh]"
-      onError={() => setErrored(true)}
+      onError={() => { setErrored(true); setErrorMsg('Playback failed'); }}
     />
   );
 }
