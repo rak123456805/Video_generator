@@ -179,6 +179,27 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
             updateJob(jobId, { quiz_status: "processing", progress: "Generating quiz..." });
             console.log(`🧠 [${jobId}] Quiz generation started`);
             quizData = await generateQuiz({ topic, scriptSlides, language, questionCount: 10 });
+            
+            // Persist quiz to Supabase
+            try {
+                const { error: dbErr } = await supabaseAdmin
+                    .from("quizzes")
+                    .upsert({
+                        id: jobId,
+                        user_id: userId || null,
+                        topic: topic,
+                        questions: quizData,
+                        created_at: new Date().toISOString()
+                    });
+                if (dbErr) {
+                    console.warn(`⚠️ [${jobId}] Failed to persist quiz to Supabase:`, dbErr.message);
+                } else {
+                    console.log(`✅ [${jobId}] Quiz persisted to Supabase database`);
+                }
+            } catch (dbEx) {
+                console.warn(`⚠️ [${jobId}] Supabase quiz persistence exception:`, dbEx.message);
+            }
+
             updateJob(jobId, {
                 quiz_status: "completed",
                 result: { quiz: quizData },

@@ -32,22 +32,27 @@ const model = genAI.getGenerativeModel({
  */
 export const generateQuiz = async ({
     topic,
-    scriptSlides,
+    scriptSlides = [],
     language = "en",
     questionCount = 10
 }) => {
-    // Combine all narration text from slides
-    const fullContent = scriptSlides
-        .map((slide, index) => `Slide ${index + 1}: ${slide.title}\n${slide.narration}`)
-        .join("\n\n");
+    // Combine all narration text from slides if available
+    const hasSlides = Array.isArray(scriptSlides) && scriptSlides.length > 0;
+    const fullContent = hasSlides
+        ? scriptSlides
+            .map((slide, index) => `Slide ${index + 1}: ${slide.title}\n${slide.narration}`)
+            .join("\n\n")
+        : "";
 
     const prompt = `
     You are an expert educational quiz creator.
     
-    Based on the following educational content about "${topic}", create a comprehensive quiz.
+    ${hasSlides 
+        ? `Based on the following educational content about "${topic}", create a comprehensive quiz.`
+        : `Create a comprehensive educational quiz on the topic "${topic}".`
+    }
     
-    CONTENT:
-    ${fullContent}
+    ${hasSlides ? `CONTENT:\n${fullContent}` : ""}
     
     REQUIREMENTS:
     - Generate exactly ${questionCount} multiple-choice questions

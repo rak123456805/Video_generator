@@ -112,6 +112,29 @@ export const getJobStatus = async (req, res) => {
 export const getQuizByJobId = async (req, res) => {
   try {
     const { jobId } = req.params;
+
+    // 1. Try fetching from Supabase first
+    try {
+      const { data: quizRecord, error: dbErr } = await supabaseAdmin
+        .from("quizzes")
+        .select("questions, topic")
+        .eq("id", jobId)
+        .single();
+        
+      if (quizRecord && !dbErr) {
+        return res.json({
+          success: true,
+          jobId,
+          quiz_status: "completed",
+          questions: quizRecord.questions,
+          topic: quizRecord.topic
+        });
+      }
+    } catch (dbEx) {
+      console.warn("⚠️ Failed to fetch quiz from Supabase:", dbEx.message);
+    }
+
+    // 2. Fallback to local job store
     const job = getJob(jobId);
 
     if (!job) {

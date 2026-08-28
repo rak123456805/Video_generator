@@ -10,9 +10,13 @@ import { GoogleDriveSettings } from './GoogleDriveSettings';
 import {
   Video, TrendingUp, Clock, Calendar,
   Sparkles, ArrowUpRight, Zap, Users,
-  Plus, Eye, BarChart2, CheckCircle2, Shield
+  Plus, Eye, BarChart2, CheckCircle2, Shield,
+  Brain, Star
 } from 'lucide-react';
 import { useVideo } from '../contexts/VideoContext';
+import { useAuth } from '../contexts/AuthContext';
+import apiClient from '../../api/client';
+import { getQuizStats, QuizStats } from '../../api/quizApi';
 
 interface DashboardPageProps {
   onNavigate: (page: string) => void;
@@ -54,33 +58,191 @@ function StatCard({ icon: Icon, label, value, change, positive, delay = 0, accen
 }
 
 export function DashboardPage({ onNavigate }: DashboardPageProps) {
+  const { videoData, recentVideos } = useVideo();
+  const { user, session } = useAuth();
+  const currentUserId = user?.id || null;
+  const token = session?.access_token || '';
+
+  const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+  const ensureAbsoluteUrl = (url: string) => {
+    if (!url) return '';
+    let cleanUrl = url;
+    if (cleanUrl.startsWith('http://localhost:5173')) {
+      cleanUrl = cleanUrl.replace('http://localhost:5173', '');
+    }
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+      return cleanUrl;
+    }
+    const cleanPath = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+    const base = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+    return `${base}${cleanPath}`;
+  };
+
   const [activeTab, setActiveTab] = useState(() => {
-    // If returning from Google Drive OAuth callback, open settings tab
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     const page = params.get('page');
-    if ((tab === 'settings' || params.has('drive_connected') || params.has('drive_error')) && page === 'dashboard') {
+
+    if (page === 'dashboard' && tab) {
+      const validTabs = ['dashboard', 'generate', 'videos', 'analytics', 'quiz', 'settings'];
+      if (validTabs.includes(tab)) {
+        return tab;
+      }
+    }
+    if ((params.has('drive_connected') || params.has('drive_error')) && page === 'dashboard') {
       return 'settings';
     }
     return 'dashboard';
   });
-  const { videoData } = useVideo();
+
+  const [backendVideos, setBackendVideos] = useState<any[]>([]);
+
+  // Fetch completed backend videos
+  useEffect(() => {
+    apiClient.get('/video/list')
+      .then((res) => {
+        if (res.data?.videos) setBackendVideos(res.data.videos);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Synchronize activeTab with URL search parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', 'dashboard');
+    params.set('tab', activeTab);
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState(null, '', newUrl);
+  }, [activeTab]);
 
   // Handle tab param changes from URL (e.g. after OAuth callback)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     const page = params.get('page');
-    if ((tab === 'settings' || params.has('drive_connected') || params.has('drive_error')) && page === 'dashboard') {
+    if (page === 'dashboard' && tab) {
+      const validTabs = ['dashboard', 'generate', 'videos', 'analytics', 'quiz', 'settings'];
+      if (validTabs.includes(tab)) {
+        setActiveTab(tab);
+      }
+    } else if ((params.has('drive_connected') || params.has('drive_error')) && page === 'dashboard') {
       setActiveTab('settings');
     }
   }, []);
 
+  // Construct combined generatedVideos array (identical logic to RecentVideos.tsx)
+  const backendMapped = backendVideos.map((v, index) => {
+    const hasLocalCopy = v.finalVideo && v.finalVideo.startsWith('/generated');
+    const isDriveVideo = v.driveUploaded && v.driveFileId;
+    
+    const finalVideoPath = hasLocalCopy
+      ? v.finalVideo
+      : isDriveVideo
+        ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
+        : v.finalVideo;
+
+    return {
+      id: `backend-${v.jobId || index}`,
+      title: v.topic || 'Untitled Video',
+      duration: v.isFullCourse ? `Part ${v.part}` : '15 min',
+      date: new Date(v.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      views: 'New',
+      videoUrl: ensureAbsoluteUrl(finalVideoPath),
+      driveFileUrl: v.driveFileUrl || null,
+      driveUploaded: v.driveUploaded || false,
+      topic: v.topic || 'Untitled Video',
+      jobId: v.jobId,
+      createdAt: v.createdAt,
+      mode: v.mode,
+      isFullCourse: v.isFullCourse,
+      part: v.part,
+    };
+  });
+
+  const backendJobIds = new Set(backendVideos.map((v) => v.jobId));
+  const localOnlyMapped = recentVideos
+    .filter((v) => !!v.videoUrl && !backendJobIds.has(v.jobId as string) && (v.userId === currentUserId || (!v.userId && !currentUserId)))
+    .map((v, index) => {
+      const hasLocalCopy = v.videoUrl && v.videoUrl.includes('/generated');
+      const isDriveVideo = v.driveUploaded && v.driveFileId;
+      
+      const finalUrl = hasLocalCopy
+        ? v.videoUrl
+        : isDriveVideo
+          ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
+          : v.videoUrl;
+
+      return {
+        id: `local-${index}`,
+        title: v.topic || 'Untitled Video',
+        duration: v.isFullCourse ? `Part ${v.currentPart}` : '15 min',
+        date: new Date(v.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        views: 'New',
+        videoUrl: ensureAbsoluteUrl(finalUrl),
+        driveFileUrl: v.driveFileUrl || null,
+        driveUploaded: v.driveUploaded || false,
+        topic: v.topic || 'Untitled Video',
+        jobId: v.jobId,
+        createdAt: v.timestamp,
+        mode: v.isFullCourse ? 'FULL' : 'CRASH',
+        isFullCourse: v.isFullCourse,
+        part: v.currentPart,
+        scriptSlides: v.scriptSlides,
+      };
+    });
+
+  const generatedVideos = [...backendMapped, ...localOnlyMapped];
+
+  // Calculations for real data metrics
+  const totalMinutes = generatedVideos.reduce((acc, v) => {
+    if (v.scriptSlides && v.scriptSlides.length > 0) {
+      return acc + (v.scriptSlides.length * 18) / 60;
+    }
+    return acc + (v.isFullCourse ? 8 : 3);
+  }, 0);
+
+  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const videosThisWeek = generatedVideos.filter(v => new Date(v.createdAt).getTime() >= oneWeekAgo).length;
+
+  const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const videosThisMonth = generatedVideos.filter(v => new Date(v.createdAt).getTime() >= oneMonthAgo).length;
+
+  const getWeeklyData = () => {
+    const data = [0, 0, 0, 0, 0, 0, 0]; // Mon to Sun
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 is Sunday, 1 is Monday, etc.
+    const distanceToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const startOfWeek = new Date(now.setDate(now.getDate() + distanceToMonday));
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    generatedVideos.forEach((v) => {
+      const date = new Date(v.createdAt);
+      if (date >= startOfWeek) {
+        const day = date.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+        const index = day === 0 ? 6 : day - 1; // map Mon->0, Tue->1, ..., Sun->6
+        data[index]++;
+      }
+    });
+    return data;
+  };
+
+  const weeklyData = getWeeklyData();
+
+  const [quizStats, setQuizStats] = useState<QuizStats | null>(null);
+
+  // Fetch quiz statistics
+  useEffect(() => {
+    getQuizStats()
+      .then((data) => setQuizStats(data))
+      .catch(() => {});
+  }, [activeTab]);
+
   const stats = [
-    { icon: Video, label: 'Videos Generated', value: '24', change: '+12%', positive: true, accent: '#8B5CF6' },
-    { icon: Clock, label: 'Minutes Created', value: '720', change: '+8%', positive: true, accent: '#A855F7' },
-    { icon: TrendingUp, label: 'This Week', value: '8', change: '+24%', positive: true, accent: '#6366F1' },
-    { icon: Calendar, label: 'This Month', value: '24', change: '+16%', positive: true, accent: '#D946EF' },
+    { icon: Video, label: 'Videos Generated', value: String(generatedVideos.length), change: `+${videosThisWeek}`, positive: true, accent: '#8B5CF6' },
+    { icon: Clock, label: 'Minutes Created', value: String(Math.round(totalMinutes)), change: 'Live', positive: true, accent: '#A855F7' },
+    { icon: Brain, label: 'Quizzes Taken', value: quizStats ? String(quizStats.totalTaken) : '0', change: 'Supabase', positive: true, accent: '#D946EF' },
+    { icon: Star, label: 'Average Grade', value: quizStats ? quizStats.avgGrade : 'N/A', change: `${quizStats ? quizStats.avgPercentage : 0}%`, positive: true, accent: '#6366F1' },
   ];
 
   const quickActions = [
@@ -90,7 +252,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     { icon: Zap, label: 'My Videos', sub: 'Browse library', action: () => setActiveTab('videos'), from: '#581c87', to: '#9333ea' },
   ];
 
-  const weeklyData = [12, 18, 8, 24, 15, 30, 22];
+
 
   const tabVariants = {
     hidden: { opacity: 0, x: 15 },
@@ -308,7 +470,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                     <p className="text-slate-400 text-sm">Track your video creation, views, and student engagement</p>
                   </div>
                   <div className="rounded-3xl overflow-hidden bg-[#0d041c]/90 border border-purple-500/25 p-6 shadow-xl">
-                    <AnalyticsSection />
+                    <AnalyticsSection videos={generatedVideos} />
                   </div>
                 </motion.div>
               )}
