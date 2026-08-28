@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Download, Share2, Clock, Calendar, X, Eye, MoreHorizontal, Sparkles, HardDrive, Video, Loader2 } from 'lucide-react';
+import { Play, Download, Share2, Clock, Calendar, X, Eye, MoreHorizontal, Sparkles, HardDrive, Video, Loader2, ExternalLink, AlertCircle } from 'lucide-react';
 import { useVideo } from '../contexts/VideoContext';
 import apiClient from '../../api/client';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,11 +13,12 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
   const { recentVideos } = useVideo();
   const { user, session } = useAuth();
   const currentUserId = user?.id || null;
-  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<{ url: string; driveFileUrl?: string | null } | null>(null);
   const [hoveredId, setHoveredId] = useState<string | number | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [backendVideos, setBackendVideos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [videoErrors, setVideoErrors] = useState<Set<string>>(new Set());
 
   const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -78,17 +79,25 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
 
   const token = session?.access_token || '';
   const isLocalDev = BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
+  const backendBase = BASE_URL.endsWith('/') ? BASE_URL.slice(0, -1) : BASE_URL;
+
+  // Build an absolute stream URL for Google Drive proxy
+  const buildStreamUrl = (driveFileId: string) =>
+    `${backendBase}/api/google-drive/stream/${driveFileId}?token=${encodeURIComponent(token)}`;
 
   // Build video list from backend (source of truth) + localStorage (supplement)
   const backendMapped = backendVideos.map((v, index) => {
     const hasLocalCopy = v.finalVideo && v.finalVideo.startsWith('/generated');
     const isDriveVideo = v.driveUploaded && v.driveFileId;
-    
-    const finalVideoPath = (isLocalDev && hasLocalCopy)
-      ? v.finalVideo
-      : isDriveVideo
-        ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
-        : v.finalVideo;
+
+    let finalVideoPath: string;
+    if (isLocalDev && hasLocalCopy) {
+      finalVideoPath = ensureAbsoluteUrl(v.finalVideo);
+    } else if (isDriveVideo) {
+      finalVideoPath = buildStreamUrl(v.driveFileId);
+    } else {
+      finalVideoPath = ensureAbsoluteUrl(v.finalVideo || '');
+    }
 
     return {
       id: `backend-${v.jobId || index}`,
@@ -96,7 +105,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
       duration: v.isFullCourse ? `Part ${v.part}` : '15 min',
       date: new Date(v.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       views: 'New',
-      videoUrl: ensureAbsoluteUrl(finalVideoPath),
+      videoUrl: finalVideoPath,
       driveFileUrl: v.driveFileUrl || null,
       driveUploaded: v.driveUploaded || false,
       topic: v.topic || 'Untitled Video',
@@ -111,12 +120,15 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
     .map((v, index) => {
       const hasLocalCopy = v.videoUrl && v.videoUrl.includes('/generated');
       const isDriveVideo = v.driveUploaded && v.driveFileId;
-      
-      const finalUrl = (isLocalDev && hasLocalCopy)
-        ? v.videoUrl
-        : isDriveVideo
-          ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
-          : v.videoUrl;
+
+      let finalUrl: string;
+      if (isLocalDev && hasLocalCopy) {
+        finalUrl = ensureAbsoluteUrl(v.videoUrl);
+      } else if (isDriveVideo) {
+        finalUrl = buildStreamUrl(v.driveFileId);
+      } else {
+        finalUrl = ensureAbsoluteUrl(v.videoUrl || '');
+      }
 
       return {
         id: `local-${index}`,
@@ -124,7 +136,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
         duration: v.isFullCourse ? `Part ${v.currentPart}` : '15 min',
         date: new Date(v.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         views: 'New',
-        videoUrl: ensureAbsoluteUrl(finalUrl),
+        videoUrl: finalUrl,
         driveFileUrl: v.driveFileUrl || null,
         driveUploaded: v.driveUploaded || false,
         topic: v.topic || 'Untitled Video',
@@ -209,8 +221,24 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
             >
               {/* Thumbnail */}
               <div className="relative aspect-video overflow-hidden bg-slate-900">
-                {video.videoUrl ? (
-                  <video src={video.videoUrl} className="w-full h-full object-cover" preload="metadata" />
+                {video.videoUrl && !videoErrors.has(video.id) ? (
+                  <video
+                    src={video.videoUrl}
+                    className="w-full h-full object-cover"
+                    preload="metadata"
+                    onError={() => setVideoErrors(prev => new Set(prev).add(video.id))}
+                  />
+                ) : videoErrors.has(video.id) ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 gap-2 p-3">
+                    <AlertCircle className="w-8 h-8 text-amber-500" />
+                    <p className="text-xs text-slate-400 text-center">Preview unavailable</p>
+                    {video.driveFileUrl && (
+                      <a href={video.driveFileUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-purple-400 underline flex items-center gap-1">
+                        <ExternalLink className="w-3 h-3" /> Open in Drive
+                      </a>
+                    )}
+                  </div>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-slate-800">
                     <Video className="w-10 h-10 text-slate-600" />
@@ -230,7 +258,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
                       <motion.button
                         initial={{ scale: 0.7 }}
                         animate={{ scale: 1 }}
-                        onClick={() => video.videoUrl && setSelectedVideo(video.videoUrl)}
+                        onClick={() => video.videoUrl && setSelectedVideo({ url: video.videoUrl, driveFileUrl: video.driveFileUrl })}
                         className="w-14 h-14 rounded-full flex items-center justify-center"
                         style={{ background: 'rgba(109,40,217,0.9)', boxShadow: '0 0 30px rgba(109,40,217,0.6)' }}
                       >
@@ -267,7 +295,7 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
                 <div className="flex items-center gap-2">
                   {/* Watch */}
                   <button
-                    onClick={() => video.videoUrl && setSelectedVideo(video.videoUrl)}
+                    onClick={() => video.videoUrl && setSelectedVideo({ url: video.videoUrl, driveFileUrl: video.driveFileUrl })}
                     className="flex-1 py-2 px-3 rounded-xl text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
                     style={{ background: 'linear-gradient(135deg, #7C3AED, #5B21B6)', boxShadow: '0 4px 12px rgba(109,40,217,0.3)' }}
                   >
@@ -370,7 +398,10 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
               >
                 <X className="w-5 h-5" />
               </button>
-              <video src={selectedVideo} controls autoPlay className="w-full h-auto max-h-[80vh]" />
+              <VideoPlayerWithFallback
+                src={selectedVideo.url}
+                driveFileUrl={selectedVideo.driveFileUrl}
+              />
             </motion.div>
           </motion.div>
         )}
@@ -379,4 +410,44 @@ export function RecentVideos({ showAll = false }: RecentVideosProps) {
   );
 
   function handleCloseVideo() { setSelectedVideo(null); }
+}
+
+// ── Inline player with error fallback ─────────────────────────────────────
+function VideoPlayerWithFallback({ src, driveFileUrl }: { src: string; driveFileUrl?: string | null }) {
+  const [errored, setErrored] = useState(false);
+
+  if (errored) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center py-16 gap-4"
+        style={{ background: '#0a0a0a', minHeight: '280px' }}>
+        <AlertCircle className="w-12 h-12 text-amber-400" />
+        <p className="text-slate-300 font-semibold text-lg">Unable to play video</p>
+        <p className="text-slate-500 text-sm text-center max-w-xs">
+          The video stream is unavailable. This typically happens when the backend storage has been cleared.
+        </p>
+        {driveFileUrl && (
+          <a
+            href={driveFileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-semibold transition-all"
+            style={{ background: 'linear-gradient(135deg, #7C3AED, #5B21B6)' }}
+          >
+            <ExternalLink className="w-4 h-4" />
+            Watch on Google Drive
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <video
+      src={src}
+      controls
+      autoPlay
+      className="w-full h-auto max-h-[80vh]"
+      onError={() => setErrored(true)}
+    />
+  );
 }
