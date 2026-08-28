@@ -62,6 +62,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
   const { user, session } = useAuth();
   const currentUserId = user?.id || null;
   const token = session?.access_token || '';
+  const isLocalDev = BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1');
 
   const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -136,7 +137,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     const hasLocalCopy = v.finalVideo && v.finalVideo.startsWith('/generated');
     const isDriveVideo = v.driveUploaded && v.driveFileId;
     
-    const finalVideoPath = hasLocalCopy
+    const finalVideoPath = (isLocalDev && hasLocalCopy)
       ? v.finalVideo
       : isDriveVideo
         ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
@@ -167,7 +168,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
       const hasLocalCopy = v.videoUrl && v.videoUrl.includes('/generated');
       const isDriveVideo = v.driveUploaded && v.driveFileId;
       
-      const finalUrl = hasLocalCopy
+      const finalUrl = (isLocalDev && hasLocalCopy)
         ? v.videoUrl
         : isDriveVideo
           ? `/api/google-drive/stream/${v.driveFileId}?token=${token}`
