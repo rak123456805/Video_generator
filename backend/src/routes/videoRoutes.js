@@ -8,6 +8,7 @@ import {
   getJobStatus,
   getQuizByJobId,
   listVideos,
+  analyzeTextRank,
 } from "../controllers/videoController.js";
 import { authenticateOptional } from "../middleware/authMiddleware.js";
 
@@ -51,5 +52,12 @@ router.get("/quiz/:jobId", getQuizByJobId);
  * Return completed video jobs for the authenticated user (or anonymous if not logged in).
  */
 router.get("/list", authenticateOptional, listVideos);
+
+/**
+ * POST /text-rank/analyze or POST /analyze-textrank
+ * Standalone TextRank NLP analysis route for testing and evaluation.
+ */
+router.post("/text-rank/analyze", analyzeTextRank);
+router.post("/analyze-textrank", analyzeTextRank);
 
 export default router;
