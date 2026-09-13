@@ -11,6 +11,7 @@
 import path from "path";
 import fs from "fs";
 import { generateAIScript } from "./scriptService.js";
+import { planScenesWithTextRank } from "./textRankService.js";
 /* FIX 2b: Use engine.js (msedge-tts) as the single TTS source of truth.
    Previously this imported tts/index.js which used the deprecated google-tts-api. */
 import { generateSpeech } from "./tts/engine.js";
@@ -184,7 +185,7 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
             progress: "Generating script...",
         });
 
-        const scriptSlides = await withTimeout(
+        const rawScriptSlides = await withTimeout(
             generateAIScript({ topic, duration, mode, part, language }),
             90_000,
             "Script generation"
