@@ -58,8 +58,7 @@ An intelligent video course generator that creates educational videos with AI-ge
 ## 📋 Prerequisites
 
 - **Node.js** 18+ and npm
-- **Python** 3.7+ (for Edge TTS)
-- **FFmpeg** installed and in system PATH
+- **FFmpeg** installed and in PATH
 - **Google Gemini API Key**
 - **Supabase Project** (Database & Auth)
 - **Google Cloud Console OAuth 2.0 Credentials** (Optional, for Google Drive upload)
@@ -76,7 +75,6 @@ cd Text_to_video_Generator
 ```bash
 cd backend
 npm install
-pip install edge-tts
 ```
 
 Create `backend/.env`:

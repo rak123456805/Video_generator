@@ -15,21 +15,36 @@ const genAI = new GoogleGenerativeAI(API_KEY || "");
 
 /* ---------------- WORD TARGETS ---------------- */
 
-const MIN_WORDS = {
-  "5min": 750,
-  "10min": 1500,
-  "15min": 2250,
+/**
+ * Word-count targets keyed by the exact duration string the frontend sends.
+ * The frontend builds: `${duration}min` where duration ∈ ["5","10","15"].
+ *
+ * Spoken-word rate used: ~140 words/minute (comfortable instructional pace).
+ * The max is capped slightly below the full minute count so the final video
+ * never significantly overshoots the user-selected duration.
+ *
+ *   5 min  → 140×5 = 700 words target; cap at 750 to give a small buffer
+ *   10 min → 140×10 = 1400; cap at 1500
+ *   15 min → 140×15 = 2100; cap at 2250
+ */
+const WORD_TARGETS = {
+  "5min":  { min: 600,  max: 750  },
+  "10min": { min: 1200, max: 1500 },
+  "15min": { min: 1800, max: 2250 },
 };
+
+/** Fallback when an unrecognised duration string is received. */
+const DEFAULT_TARGET = { min: 1200, max: 1500 };
 
 /* ---------------- PROMPT BUILDER ---------------- */
 
 const buildPrompt = ({ topic, duration, mode, part, language }) => {
-  const minWords = MIN_WORDS[duration] || 1500;
+  const { min, max } = WORD_TARGETS[duration] || DEFAULT_TARGET;
 
   return `
 You are an expert educational content creator.
 Create a video script for the topic: "${topic}".
-Duration Target: ${duration} - MUST GENERATE AT LEAST ${minWords} WORDS OF NARRATION.
+Duration Target: ${duration} - Generate between ${min} and ${max} words of narration total. Do not exceed ${max} words.
 Mode: ${mode} (${mode === "FULL" ? "Part " + part : "Crash Course"}).
 Language: ${language} (Ensure script is in this language).
 
@@ -60,7 +75,7 @@ Requirements:
 - imagePrompt in English
 - examples: VISUAL-ONLY, DO NOT read word-for-word
 - examples max 2 per slide
-- Total narration words MUST be AT LEAST ${minWords}.
+- Total narration words MUST be between ${min} and ${max}. Do NOT exceed ${max} words.
 `.trim();
 };
 
@@ -188,6 +203,52 @@ async function generateWithGemini25Flash(prompt, attempts = 3) {
   throw lastErr;
 }
 
+/* ---------------- NARRATION TRIM HELPER ---------------- */
+
+/**
+ * Trim narration across slides until the total word count falls at or below
+ * `targetMax`. Works by removing complete trailing slides first, then
+ * truncating the last slide's narration sentence-by-sentence.
+ *
+ * This is a last-resort guard — ideally the model respects the prompt cap.
+ */
+function trimToMaxWords(slides, targetMax) {
+  // Count helpers
+  const countWords = (s) => String(s || "").split(/\s+/).filter(Boolean).length;
+
+  // Work on a shallow-copy so we don't mutate the original
+  let result = slides.map((s) => ({ ...s }));
+
+  // First pass: drop trailing slides until we're under the cap
+  while (result.length > 1) {
+    const total = result.reduce((sum, s) => sum + countWords(s.narration), 0);
+    if (total <= targetMax) break;
+    const dropped = result.pop();
+    console.warn(
+      `✂️  Dropped slide "${dropped.title}" to meet word cap (was ${total} words, cap ${targetMax})`
+    );
+  }
+
+  // Second pass: truncate last slide's narration sentence-by-sentence
+  let total = result.reduce((sum, s) => sum + countWords(s.narration), 0);
+  if (total > targetMax && result.length > 0) {
+    const last = result[result.length - 1];
+    const sentences = last.narration.split(/(?<=[.!?।])\s+/);
+    while (sentences.length > 1 && total > targetMax) {
+      const removed = sentences.pop();
+      total -= countWords(removed);
+    }
+    last.narration = sentences.join(" ").trim();
+    console.warn(`✂️  Truncated last slide narration to meet word cap — new total: ${total} words`);
+  }
+
+  // Re-calculate word counts on the trimmed slides
+  return result.map((s) => ({
+    ...s,
+    wordCount: countWords(s.narration),
+  }));
+}
+
 /* ---------------- GEMINI CALL ---------------- */
 
 export const generateAIScript = async ({
@@ -201,10 +262,12 @@ export const generateAIScript = async ({
     throw new Error("GOOGLE_API_KEY not set in environment variables (Render Environment).");
   }
 
+  const { min, max } = WORD_TARGETS[duration] || DEFAULT_TARGET;
   const prompt = buildPrompt({ topic, duration, mode, part, language });
 
   try {
     console.log(`🧠 Requesting structured script from Gemini 2.5 Flash for "${topic}"...`);
+    console.log(`📏 Word target: ${min}–${max} words (duration: ${duration})`);
 
     const { result, usedModel } = await generateWithGemini25Flash(prompt, 3);
 
@@ -234,7 +297,7 @@ export const generateAIScript = async ({
       throw new Error("Gemini response is not a JSON array.");
     }
 
-    // Add word counts
+    // Add word counts to every slide
     scriptData = scriptData.map((slide) => ({
       ...slide,
       wordCount: String(slide?.narration || "")
@@ -243,14 +306,24 @@ export const generateAIScript = async ({
     }));
 
     const totalWords = scriptData.reduce((sum, slide) => sum + (slide.wordCount || 0), 0);
-    const minWords = MIN_WORDS[duration] || 1500;
 
     console.log(`✅ Script generated using model: ${usedModel}`);
-    console.log(`📊 Generated ${totalWords} words (target: ${minWords} words)`);
+    console.log(`📊 Generated ${totalWords} words (target: ${min}–${max} words)`);
 
-    if (totalWords < minWords * 0.7) {
+    /* ---- Guard: trim if model exceeded the cap by more than 10% ---- */
+    if (totalWords > max * 1.1) {
       console.warn(
-        `⚠️ WARNING: Generated content (${totalWords} words) is significantly less than target (${minWords} words)`
+        `⚠️  WARNING: Script too long (${totalWords} words > cap ${max} words). Trimming...`
+      );
+      scriptData = trimToMaxWords(scriptData, max);
+      const trimmedTotal = scriptData.reduce((sum, s) => sum + (s.wordCount || 0), 0);
+      console.log(`✂️  Trimmed to ${trimmedTotal} words`);
+    }
+
+    /* ---- Guard: warn if model produced far too little content ---- */
+    if (totalWords < min * 0.7) {
+      console.warn(
+        `⚠️  WARNING: Generated content (${totalWords} words) is significantly less than target (${min} words)`
       );
     }
 
