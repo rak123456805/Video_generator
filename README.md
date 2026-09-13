@@ -59,7 +59,6 @@ An intelligent video course generator that creates educational videos with AI-ge
 ## 📋 Prerequisites
 
 - **Node.js** 18+ and npm
-- **Python** 3.7+ (for Edge TTS)
 - **FFmpeg** installed and in PATH
 - **Google Gemini API Key**
 
@@ -75,7 +74,6 @@ cd "AI Video Course Generator"
 ```bash
 cd backend
 npm install
-pip install edge-tts
 ```
 
 Create `.env` file:
@@ -329,6 +327,19 @@ CORS_ORIGINS=http://localhost:5173
 
 ### 4. Database Setup
 Create the required `google_drive_connections` table in your Supabase database by executing the SQL migration located at `supabase/migrations/20240101000000_create_google_drive_connections.sql` in the Supabase SQL editor.
+
+---
+
+## ☁️ Deployment on Render
+
+See **[DEPLOYMENT.md](./DEPLOYMENT.md)** for full instructions covering:
+
+- **Render Disk setup** — required to persist generated videos across restarts
+- **Environment variables** — complete reference for production
+- **Single-process architecture** (current) — with relaxed health check
+- **Two-service architecture** (recommended) — separate API + Background Worker sharing one Disk, with BullMQ/Redis job queue
+
+> ⚠️ Without a Render Disk, every deploy wipes all generated videos. The server will print a loud warning if `RENDER_DISK_MOUNTED` is not set.
 
 ---
 

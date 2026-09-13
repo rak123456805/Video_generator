@@ -231,12 +231,14 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
   const [quizStats, setQuizStats] = useState<QuizStats | null>(null);
 
-  // Fetch quiz statistics
+  // Fetch quiz statistics — only when the user is authenticated.
+  // Without this guard the request fires with no Authorization header → 401.
   useEffect(() => {
+    if (!user) return; // not logged in yet; skip the call
     getQuizStats()
       .then((data) => setQuizStats(data))
-      .catch(() => {});
-  }, [activeTab]);
+      .catch(() => {}); // silently ignore — stat cards fall back to "0" / "N/A"
+  }, [activeTab, user]);
 
   const stats = [
     { icon: Video, label: 'Videos Generated', value: String(generatedVideos.length), change: `+${videosThisWeek}`, positive: true, accent: '#8B5CF6' },

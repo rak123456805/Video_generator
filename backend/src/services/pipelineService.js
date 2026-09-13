@@ -1,9 +1,19 @@
-/* src/services/pipelineService.js — Dependency-driven async pipeline */
+/* src/services/pipelineService.js — Dependency-driven async pipeline
+ *
+ * Changes vs original:
+ *  - TTS import now points at tts/engine.js (msedge-tts) instead of tts/index.js (google-tts-api)
+ *  - Added withTimeout() helper — rejects with a descriptive error after ms elapsed
+ *  - Every major pipeline stage is wrapped with a sensible timeout so a stalled
+ *    network call or FFmpeg hang results in a clean "failed" job status instead of
+ *    hanging the dyno indefinitely.
+ */
 
 import path from "path";
 import fs from "fs";
 import { generateAIScript } from "./scriptService.js";
-import { generateSpeech } from "./tts/index.js";
+/* FIX 2b: Use engine.js (msedge-tts) as the single TTS source of truth.
+   Previously this imported tts/index.js which used the deprecated google-tts-api. */
+import { generateSpeech } from "./tts/engine.js";
 import { generateSlides } from "./slideService.js";
 import { generateVideoFromSlides } from "./slideVideoService.js";
 import { getAudioDuration } from "./audioService.js";
@@ -16,6 +26,25 @@ import {
   getOrCreateTextToVideoFolder,
   uploadVideoToDrive,
 } from "./googleDriveService.js";
+
+/* ---------- FIX 3: Stage-level timeout helper ----------
+ *
+ * Races `promise` against a timer.  If the timer fires first it rejects with
+ * a message like "Script generation timed out after 90s", which the catch block
+ * at the bottom of runPipeline() will pick up and store as job.error — giving
+ * the frontend a clear, human-readable failure reason instead of infinite spinner.
+ */
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(
+        () => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)),
+        ms
+      )
+    ),
+  ]);
+}
 
 /* ---------- Helpers ---------- */
 
@@ -146,6 +175,8 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
     try {
         /* ================================================================
            STEP 1: TEXT / SCRIPT GENERATION
+           Timeout: 90 s — Gemini can be slow under load but should never
+           take more than a minute and a half for a structured response.
            ================================================================ */
         console.log(`🎬 [${jobId}] Pipeline started: ${mode} - ${topic}`);
         updateJob(jobId, {
@@ -153,7 +184,11 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
             progress: "Generating script...",
         });
 
-        const scriptSlides = await generateAIScript({ topic, duration, mode, part, language });
+        const scriptSlides = await withTimeout(
+            generateAIScript({ topic, duration, mode, part, language }),
+            90_000,
+            "Script generation"
+        );
 
         if (!scriptSlides || scriptSlides.length === 0) {
             throw new Error("Script generation returned empty result");
@@ -178,7 +213,13 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         try {
             updateJob(jobId, { quiz_status: "processing", progress: "Generating quiz..." });
             console.log(`🧠 [${jobId}] Quiz generation started`);
-            quizData = await generateQuiz({ topic, scriptSlides, language, questionCount: 10 });
+
+            // Timeout: 60 s — quiz generation is a single Gemini call
+            quizData = await withTimeout(
+                generateQuiz({ topic, scriptSlides, language, questionCount: 10 }),
+                60_000,
+                "Quiz generation"
+            );
             
             // Persist quiz to Supabase
             try {
@@ -216,7 +257,16 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         // --- Slides (critical) ---
         updateJob(jobId, { slide_status: "processing", progress: "Rendering slides..." });
         console.log(`🖼️ [${jobId}] Slide generation started`);
-        const slidePaths = await generateSlides(scriptSlides, slideFolder, language);
+
+        // Timeout: 5 s per slide (Puppeteer screenshot), minimum 60 s, maximum 300 s
+        const slideTimeoutMs = Math.min(300_000, Math.max(60_000, scriptSlides.length * 5_000));
+        console.log(`⏱️  [${jobId}] Slide timeout: ${slideTimeoutMs / 1000}s for ${scriptSlides.length} slides`);
+
+        const slidePaths = await withTimeout(
+            generateSlides(scriptSlides, slideFolder, language),
+            slideTimeoutMs,
+            "Slide rendering"
+        );
         if (!slidePaths.length) throw new Error("Slide rendering failed");
         updateJob(jobId, {
             slide_status: "completed",
@@ -228,7 +278,14 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         updateJob(jobId, { audio_status: "processing", progress: "Generating audio..." });
         console.log(`🎙️ [${jobId}] Audio generation started`);
         const fullNarration = scriptSlides.map(s => s.narration).join("\n\n");
-        const audioPath = await generateSpeech(fullNarration, audioFile, language);
+
+        // Timeout: 10 min — conservative ceiling for large scripts (15 min lesson ≈ 2250 words ≈ 6 chunks)
+        // Each chunk has its own 30 s timeout inside engine.js; this outer timeout is a safety net.
+        const audioPath = await withTimeout(
+            generateSpeech(fullNarration, audioFile, language),
+            600_000,
+            "Audio generation"
+        );
         if (!(await ensureFileExists(audioPath))) {
             throw new Error("Audio generation failed — file not found");
         }
@@ -264,10 +321,11 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         updateJob(jobId, { progress: "Rendering video from slides..." });
         const slideDirPath = path.join(process.cwd(), "generated", slideFolder);
 
-        const silentVideoPath = await generateVideoFromSlides(
-            slideDirPath,
-            silentVideo,
-            slideDurations
+        // Timeout: 180 s — FFmpeg concat of slide images into a silent video
+        const silentVideoPath = await withTimeout(
+            generateVideoFromSlides(slideDirPath, silentVideo, slideDurations),
+            180_000,
+            "Video encoding"
         );
 
         if (!(await ensureFileExists(silentVideoPath))) {
@@ -276,7 +334,13 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
 
         updateJob(jobId, { progress: "Merging audio and video..." });
         const finalOutputPath = path.join(process.cwd(), "generated", finalVideo);
-        await mergeVideoAndAudio(silentVideoPath, audioPath, finalOutputPath);
+
+        // Timeout: 120 s — FFmpeg audio/video merge
+        await withTimeout(
+            mergeVideoAndAudio(silentVideoPath, audioPath, finalOutputPath),
+            120_000,
+            "Audio/video merge"
+        );
 
         /* ================================================================
            STEP 4: GOOGLE DRIVE UPLOAD (after video is merged)
@@ -309,7 +373,13 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
 
         console.log(`🎉 [${jobId}] Pipeline completed successfully!${driveResult ? " (saved to Drive)" : ""}`);
 
-    } catch (err) {
+    } catch (rawErr) {
+        // Normalise to Error so .message is always a string, even if a stage
+        // threw a raw string, plain object, or undefined (e.g. msedge-tts).
+        const err = rawErr instanceof Error
+            ? rawErr
+            : new Error(String(rawErr?.message ?? rawErr ?? "Unknown pipeline error"));
+
         console.error(`❌ [${jobId}] Pipeline failed:`, err.message);
         updateJob(jobId, {
             overall_status: "failed",

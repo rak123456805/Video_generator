@@ -179,6 +179,9 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
     );
   }
 
+  /* FIX 4: Wrap browser launch + render loop in try/finally so browser.close()
+     always executes even if any screenshot or page.setContent() throws mid-loop.
+     Previously a mid-loop exception would leave a Chrome subprocess running. */
   let browser;
   try {
     browser = await puppeteer.launch({
@@ -198,6 +201,8 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
     );
   }
 
+  // Everything below runs inside try/finally — browser.close() is guaranteed.
+  try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 720 });
 
@@ -207,7 +212,7 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
   const templatePath = path.join(__dirname, "slideTemplate.html");
 
   if (!fs.existsSync(templatePath)) {
-    await browser.close();
+    // browser.close() is handled by the finally block below
     throw new Error("slideTemplate.html not found");
   }
 
@@ -296,11 +301,15 @@ export const generateSlides = async (script, slideFolder, language = "en") => {
   }
 
   /* --------------------------------------------------
-     6️⃣ Cleanup
+     6️⃣ Return slide paths
   -------------------------------------------------- */
-  await browser.close();
-
   return generatedImages;
+
+  } finally {
+    /* Always close the browser, whether the render loop succeeded or threw.
+       .catch(() => {}) silences any secondary error during close itself. */
+    if (browser) await browser.close().catch(() => {});
+  }
 };
 
 /* ==================================================

@@ -1,4 +1,3 @@
-version: "3.8"
 
 services:
   backend:
@@ -12,6 +11,18 @@ services:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+      # Supabase admin credentials — required for JWT verification on all
+      # authenticated routes (/api/quiz/stats, /api/google-drive/status, etc.)
+      # Without these the backend can't validate tokens → every protected
+      # endpoint returns 401 Unauthorized.
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      # Google Drive OAuth (only needed if Drive integration is used)
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI:-http://localhost:5000/api/google-drive/callback}
+      - GOOGLE_DRIVE_ENCRYPTION_KEY=${GOOGLE_DRIVE_ENCRYPTION_KEY}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
     volumes:
       - backend_generated:/app/generated
     restart: unless-stopped
@@ -21,9 +32,12 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
+        # Vite bakes VITE_* vars into the JS bundle at build time.
+        # Docker Compose resolves ${VAR} from the root .env file (this directory).
+        # Values come from the root .env — see .env.example for setup instructions.
         VITE_API_URL: http://localhost:5000
-        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
-        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
     ports:
       - "3000:80"
     depends_on:

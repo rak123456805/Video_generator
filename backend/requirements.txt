@@ -1,1 +1,4 @@
-edge-tts
+# This file is intentionally empty.
+# The Python edge-tts package is no longer used.
+# TTS is handled entirely by the Node msedge-tts npm package (no Python required).
+# See src/services/tts/engine.js

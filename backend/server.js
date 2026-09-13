@@ -97,6 +97,29 @@ app.listen(PORT, () => {
 
   // Mark any interrupted jobs from previous server runs as failed
   markInterruptedJobs();
+
+  /* FIX 6: Warn loudly if running on Render without a persistent Disk.
+   *
+   * On Render, the filesystem is EPHEMERAL by default — every deploy or
+   * spin-down wipes /app/generated, losing all job state and generated videos.
+   *
+   * To fix:
+   *   1. Attach a Render Disk to the service, mounted at /app/generated.
+   *   2. Add RENDER_DISK_MOUNTED=true to the service's Environment Variables.
+   *
+   * See DEPLOYMENT.md for full instructions.
+   */
+  if (process.env.RENDER && !process.env.RENDER_DISK_MOUNTED) {
+    console.warn('╔═══════════════════════════════════════════════════════════════╗');
+    console.warn('║  ⚠️  PERSISTENT STORAGE WARNING                               ║');
+    console.warn('║  RENDER_DISK_MOUNTED is not set.                              ║');
+    console.warn('║  Generated videos and job state WILL be lost on every         ║');
+    console.warn('║  deploy / restart / spin-down.                                ║');
+    console.warn('║  Attach a Render Disk at /app/generated and set               ║');
+    console.warn('║  RENDER_DISK_MOUNTED=true in the service env vars.            ║');
+    console.warn('║  See DEPLOYMENT.md for instructions.                          ║');
+    console.warn('╚═══════════════════════════════════════════════════════════════╝');
+  }
 });
 
 // Nodemon restart trigger
