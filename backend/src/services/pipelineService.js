@@ -327,8 +327,8 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         const slideDirPath = path.join(process.cwd(), "generated", slideFolder);
 
         // Timeout: scale with audio duration — FFmpeg needs at least ~5× realtime for
-        // encoding stills at 30fps on a slow/shared server.  Floor: 3 min, ceiling: 15 min.
-        const videoEncodeTimeoutMs = Math.min(900_000, Math.max(180_000, audioDuration * 5_000));
+        // encoding stills at 30fps on a slow/shared server.  Floor: 3 min, ceiling: 30 min.
+        const videoEncodeTimeoutMs = Math.min(1_800_000, Math.max(180_000, audioDuration * 5_000));
         console.log(`⏱️  [${jobId}] Video encoding timeout: ${Math.round(videoEncodeTimeoutMs / 1000)}s (audio is ${Math.round(audioDuration)}s)`);
 
         const silentVideoPath = await withTimeout(
@@ -345,8 +345,8 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         const finalOutputPath = path.join(process.cwd(), "generated", finalVideo);
 
         // Timeout: scale with audio duration — muxing needs at least ~2× realtime.
-        // Floor: 2 min, ceiling: 8 min.
-        const mergeTimeoutMs = Math.min(480_000, Math.max(120_000, audioDuration * 2_000));
+        // Floor: 2 min, ceiling: 20 min.
+        const mergeTimeoutMs = Math.min(1_200_000, Math.max(120_000, audioDuration * 2_000));
         console.log(`⏱️  [${jobId}] Audio/video merge timeout: ${Math.round(mergeTimeoutMs / 1000)}s`);
 
         await withTimeout(
