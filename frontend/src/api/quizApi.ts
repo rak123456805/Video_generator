@@ -35,11 +35,12 @@ export interface QuizHeader {
 /**
  * Save a completed quiz result to Supabase.
  */
-export async function saveQuizResult(quizId: string, score: number, totalQuestions: number): Promise<QuizResult> {
+export async function saveQuizResult(quizId: string, score: number, totalQuestions: number, topic?: string): Promise<QuizResult> {
   const res = await apiClient.post("/quiz/result", {
     quizId,
     score,
     totalQuestions,
+    topic,
   });
   return res.data.result;
 }

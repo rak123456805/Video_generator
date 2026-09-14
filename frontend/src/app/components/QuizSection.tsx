@@ -257,7 +257,8 @@ export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideo
         if (finalQuizId) {
             try {
                 const quizScore = calculateScore();
-                await saveQuizResult(finalQuizId, quizScore, questions.length);
+                const quizTopic = videoData.topic || undefined;
+                await saveQuizResult(finalQuizId, quizScore, questions.length, quizTopic);
                 console.log("✅ Quiz result saved successfully to Supabase");
             } catch (err) {
                 console.warn("⚠️ Failed to save quiz result:", err);
