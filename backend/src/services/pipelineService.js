@@ -326,10 +326,14 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         updateJob(jobId, { progress: "Rendering video from slides..." });
         const slideDirPath = path.join(process.cwd(), "generated", slideFolder);
 
-        // Timeout: 180 s — FFmpeg concat of slide images into a silent video
+        // Timeout: scale with audio duration — FFmpeg needs at least ~5× realtime for
+        // encoding stills at 30fps on a slow/shared server.  Floor: 3 min, ceiling: 15 min.
+        const videoEncodeTimeoutMs = Math.min(900_000, Math.max(180_000, audioDuration * 5_000));
+        console.log(`⏱️  [${jobId}] Video encoding timeout: ${Math.round(videoEncodeTimeoutMs / 1000)}s (audio is ${Math.round(audioDuration)}s)`);
+
         const silentVideoPath = await withTimeout(
             generateVideoFromSlides(slideDirPath, silentVideo, slideDurations),
-            180_000,
+            videoEncodeTimeoutMs,
             "Video encoding"
         );
 
@@ -340,10 +344,14 @@ export async function runPipeline({ topic, duration, mode, part = 1, language = 
         updateJob(jobId, { progress: "Merging audio and video..." });
         const finalOutputPath = path.join(process.cwd(), "generated", finalVideo);
 
-        // Timeout: 120 s — FFmpeg audio/video merge
+        // Timeout: scale with audio duration — muxing needs at least ~2× realtime.
+        // Floor: 2 min, ceiling: 8 min.
+        const mergeTimeoutMs = Math.min(480_000, Math.max(120_000, audioDuration * 2_000));
+        console.log(`⏱️  [${jobId}] Audio/video merge timeout: ${Math.round(mergeTimeoutMs / 1000)}s`);
+
         await withTimeout(
             mergeVideoAndAudio(silentVideoPath, audioPath, finalOutputPath),
-            120_000,
+            mergeTimeoutMs,
             "Audio/video merge"
         );
 
