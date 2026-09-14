@@ -94,10 +94,40 @@ export const generateQuizFromScript = async (req, res) => {
 export const saveQuizResult = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { quizId, score, totalQuestions } = req.body;
+        const { quizId, score, totalQuestions, topic } = req.body;
 
         if (!quizId || score === undefined || !totalQuestions) {
             return res.status(400).json({ success: false, message: "Missing required fields" });
+        }
+
+        /* ---------------------------------------------------------------
+         * FK Guard: ensure the quiz row exists in `quizzes` before we
+         * insert into `quiz_results`.  This handles two edge cases:
+         *   1. The on-the-fly quiz generation's DB insert failed silently,
+         *      leaving a quizId the frontend knows about but that isn't in
+         *      the table yet.
+         *   2. The pipeline quiz upsert raced with the client submitting
+         *      results before the pipeline finished.
+         * We upsert a minimal stub (ignoreing conflicts) so the FK is
+         * always satisfied without clobbering a real row.
+         * --------------------------------------------------------------- */
+        const { error: upsertErr } = await supabaseAdmin
+            .from("quizzes")
+            .upsert(
+                {
+                    id: quizId,
+                    user_id: userId,
+                    topic: topic || "Unknown",
+                    questions: [],
+                    created_at: new Date().toISOString(),
+                },
+                { onConflict: "id", ignoreDuplicates: true }
+            );
+
+        if (upsertErr) {
+            // Non-fatal: log but continue — the real insert below will surface
+            // the FK error with a clear message if the upsert truly failed.
+            console.warn(`⚠️ quiz stub upsert failed (quiz_id=${quizId}):`, upsertErr.message);
         }
 
         const percentage = Math.round((score / totalQuestions) * 100);
