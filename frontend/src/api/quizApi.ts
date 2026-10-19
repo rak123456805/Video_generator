@@ -6,6 +6,14 @@
 
 import apiClient from "./client";
 
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  explanation: string;
+  difficulty: "easy" | "medium" | "hard";
+}
+
 export interface QuizResult {
   id: string;
   user_id: string;
@@ -30,6 +38,9 @@ export interface QuizHeader {
   id: string;
   topic: string;
   created_at: string;
+  questionCount: number;
+  questions?: QuizQuestion[];
+  user_id?: string;
 }
 
 /**
@@ -68,3 +79,40 @@ export async function listQuizzes(): Promise<QuizHeader[]> {
   const res = await apiClient.get("/quiz/list");
   return res.data.quizzes || [];
 }
+
+/**
+ * Fetch a single quiz by its ID.
+ */
+export async function getQuizById(id: string): Promise<QuizHeader & { questions: QuizQuestion[] }> {
+  const res = await apiClient.get(`/quiz/${id}`);
+  return res.data.quiz;
+}
+
+/**
+ * Generate a new quiz or the next follow-up quiz containing 10 questions.
+ */
+export async function generateQuizApi(params: {
+  topic: string;
+  scriptSlides?: any[];
+  language?: string;
+  questionCount?: number;
+  previousQuestions?: any[];
+  isNextQuiz?: boolean;
+  quizNumber?: number;
+}): Promise<{ success: boolean; quizId: string; topic: string; questions: QuizQuestion[]; questionCount: number }> {
+  const res = await apiClient.post("/quiz/generate", {
+    questionCount: 10,
+    language: "en",
+    ...params,
+  });
+  return res.data;
+}
+
+/**
+ * Delete a quiz by its ID.
+ */
+export async function deleteQuiz(id: string): Promise<boolean> {
+  const res = await apiClient.delete(`/quiz/${id}`);
+  return res.data.success;
+}
+

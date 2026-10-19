@@ -34,7 +34,10 @@ export const generateQuiz = async ({
     topic,
     scriptSlides = [],
     language = "en",
-    questionCount = 10
+    questionCount = 10,
+    previousQuestions = [],
+    isNextQuiz = false,
+    quizNumber = 2
 }) => {
     // Combine all narration text from slides if available
     const hasSlides = Array.isArray(scriptSlides) && scriptSlides.length > 0;
@@ -44,15 +47,33 @@ export const generateQuiz = async ({
             .join("\n\n")
         : "";
 
+    // Build exclusion list if previous questions exist
+    let prevQuestionsNote = "";
+    if (Array.isArray(previousQuestions) && previousQuestions.length > 0) {
+        const questionTexts = previousQuestions
+            .map((q, i) => `${i + 1}. ${typeof q === 'string' ? q : (q.question || '')}`)
+            .filter(t => t.trim().length > 3)
+            .slice(0, 20);
+        if (questionTexts.length > 0) {
+            prevQuestionsNote = `
+    PREVIOUS QUESTIONS (DO NOT DUPLICATE OR CLOSELY REPEAT THESE):
+    ${questionTexts.join("\n")}
+    Ensure all ${questionCount} new questions are completely fresh, distinct, and explore different aspects, applications, or deeper understanding of the topic.`;
+        }
+    }
+
     const prompt = `
     You are an expert educational quiz creator.
     
-    ${hasSlides 
-        ? `Based on the following educational content about "${topic}", create a comprehensive quiz.`
-        : `Create a comprehensive educational quiz on the topic "${topic}".`
+    ${isNextQuiz
+        ? `Create the NEXT comprehensive follow-up quiz (Set / Part ${quizNumber}) on the topic "${topic}".`
+        : hasSlides 
+            ? `Based on the following educational content about "${topic}", create a comprehensive quiz.`
+            : `Create a comprehensive educational quiz on the topic "${topic}".`
     }
     
     ${hasSlides ? `CONTENT:\n${fullContent}` : ""}
+    ${prevQuestionsNote}
     
     REQUIREMENTS:
     - Generate exactly ${questionCount} multiple-choice questions
