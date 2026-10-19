@@ -4,7 +4,9 @@ import {
   saveQuizResult,
   getQuizResults,
   getQuizStats,
-  listQuizzes
+  listQuizzes,
+  getQuizById,
+  deleteQuiz
 } from "../controllers/quizController.js";
 import { authenticate, authenticateOptional } from "../middleware/authMiddleware.js";
 
@@ -12,7 +14,7 @@ const router = express.Router();
 
 /**
  * POST /generate
- * Generate quiz questions based on video script content
+ * Generate quiz questions based on video script content or topic
  */
 router.post("/generate", authenticateOptional, generateQuizFromScript);
 
@@ -38,6 +40,19 @@ router.get("/stats", authenticate, getQuizStats);
  * GET /list
  * List all available quizzes
  */
-router.get("/list", authenticate, listQuizzes);
+router.get("/list", authenticateOptional, listQuizzes);
+
+/**
+ * GET /:id
+ * Fetch a specific quiz by ID
+ */
+router.get("/:id", authenticateOptional, getQuizById);
+
+/**
+ * DELETE /:id
+ * Delete a quiz by ID
+ */
+router.delete("/:id", authenticate, deleteQuiz);
 
 export default router;
+

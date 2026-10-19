@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { LayoutDashboard, Video, FileVideo, BarChart3, Settings, Brain, User, LogOut, Sparkles, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Video, FileVideo, BarChart3, Settings, Brain, BookOpen, User, LogOut, Sparkles, ChevronRight } from 'lucide-react';
 import { useAppSelector } from '../store/hooks';
 import { useAuth } from '../contexts/AuthContext';
 import { useVideo } from '../contexts/VideoContext';
@@ -24,8 +24,9 @@ export function DashboardSidebar({ activeTab, onTabChange, onNavigate }: Dashboa
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', description: 'Overview' },
     { id: 'generate', icon: Video, label: 'Generate Video', description: 'Create new' },
-    { id: 'videos', icon: FileVideo, label: 'My Videos', description: 'Library' },
-    { id: 'quiz', icon: Brain, label: 'Quiz Mode', description: 'Test knowledge' },
+    { id: 'videos', icon: FileVideo, label: 'My Videos', description: 'Video library' },
+    { id: 'quiz-library', icon: BookOpen, label: 'Quiz Library', description: 'All quizzes' },
+    { id: 'quiz', icon: Brain, label: 'Quiz Mode', description: 'Play quiz' },
     { id: 'analytics', icon: BarChart3, label: 'Analytics', description: 'Performance' },
     { id: 'settings', icon: Settings, label: 'Settings', description: 'Preferences' },
   ];

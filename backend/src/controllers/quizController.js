@@ -9,7 +9,15 @@ import { supabaseAdmin } from "../config/supabaseAdmin.js";
  */
 export const generateQuizFromScript = async (req, res) => {
     try {
-        const { topic, scriptSlides, language = "en", questionCount = 10 } = req.body;
+        const {
+            topic,
+            scriptSlides,
+            language = "en",
+            questionCount = 10,
+            previousQuestions = [],
+            isNextQuiz = false,
+            quizNumber = 2
+        } = req.body;
 
         // Validation
         if (!topic || !topic.trim()) {
@@ -31,7 +39,7 @@ export const generateQuizFromScript = async (req, res) => {
         }
 
         // Validate question count
-        const count = parseInt(questionCount);
+        const count = parseInt(questionCount) || 10;
         if (isNaN(count) || count < 5 || count > 20) {
             return res.status(400).json({
                 success: false,
@@ -39,13 +47,27 @@ export const generateQuizFromScript = async (req, res) => {
             });
         }
 
-        console.log(`📝 Generating quiz for topic: "${topic}" (${language})`);
+        // Format topic for next quiz if applicable
+        let finalTopic = topic.trim();
+        if (isNextQuiz) {
+            const num = quizNumber || 2;
+            if (/(\(Quiz\s+\d+\)|- Quiz\s+\d+|\(Part\s+\d+\)|- Part\s+\d+)/i.test(finalTopic)) {
+                finalTopic = finalTopic.replace(/(\(Quiz\s+\d+\)|- Quiz\s+\d+|\(Part\s+\d+\)|- Part\s+\d+)/i, `(Quiz ${num})`);
+            } else {
+                finalTopic = `${finalTopic} (Quiz ${num})`;
+            }
+        }
+
+        console.log(`📝 Generating quiz for topic: "${finalTopic}" (${count} questions, ${language})`);
 
         const quizQuestions = await generateQuiz({
-            topic,
+            topic: finalTopic,
             scriptSlides: slides,
             language,
-            questionCount: count
+            questionCount: count,
+            previousQuestions,
+            isNextQuiz,
+            quizNumber: quizNumber || 2
         });
 
         // Save generated quiz to Supabase
@@ -56,7 +78,7 @@ export const generateQuizFromScript = async (req, res) => {
                 .insert({
                     id: quizId,
                     user_id: req.user?.id || null,
-                    topic: topic,
+                    topic: finalTopic,
                     questions: quizQuestions,
                     created_at: new Date().toISOString()
                 });
@@ -72,7 +94,7 @@ export const generateQuizFromScript = async (req, res) => {
         res.json({
             success: true,
             quizId,
-            topic,
+            topic: finalTopic,
             language,
             questionCount: quizQuestions.length,
             questions: quizQuestions
@@ -238,16 +260,99 @@ export const getQuizStats = async (req, res) => {
  */
 export const listQuizzes = async (req, res) => {
     try {
-        const { data, error } = await supabaseAdmin
+        const userId = req.user?.id || null;
+        let query = supabaseAdmin
             .from("quizzes")
-            .select("id, topic, created_at")
+            .select("id, topic, questions, created_at, user_id")
             .order("created_at", { ascending: false });
 
+        if (userId) {
+            query = query.or(`user_id.eq.${userId},user_id.is.null`);
+        }
+
+        let { data, error } = await query;
         if (error) throw new Error(error.message);
 
-        res.json({ success: true, quizzes: data });
+        // If user has no quizzes yet under their id, fallback to all quizzes so library isn't blank
+        if ((!data || data.length === 0) && userId) {
+            const fallback = await supabaseAdmin
+                .from("quizzes")
+                .select("id, topic, questions, created_at, user_id")
+                .order("created_at", { ascending: false })
+                .limit(50);
+            if (!fallback.error && fallback.data) {
+                data = fallback.data;
+            }
+        }
+
+        const quizzes = (data || []).map((q) => ({
+            id: q.id,
+            topic: q.topic,
+            questionCount: Array.isArray(q.questions) ? q.questions.length : 0,
+            questions: q.questions || [],
+            created_at: q.created_at,
+            user_id: q.user_id,
+        }));
+
+        res.json({ success: true, quizzes });
     } catch (err) {
         console.error("Error listing quizzes:", err);
         res.status(500).json({ success: false, error: err.message });
     }
 };
+
+/**
+ * GET /api/quiz/:id
+ * Fetch a single quiz by ID
+ */
+export const getQuizById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { data, error } = await supabaseAdmin
+            .from("quizzes")
+            .select("id, topic, questions, created_at, user_id")
+            .eq("id", id)
+            .single();
+
+        if (error || !data) {
+            return res.status(404).json({ success: false, message: "Quiz not found" });
+        }
+
+        res.json({
+            success: true,
+            quiz: {
+                id: data.id,
+                topic: data.topic,
+                questions: data.questions || [],
+                questionCount: Array.isArray(data.questions) ? data.questions.length : 0,
+                created_at: data.created_at,
+                user_id: data.user_id,
+            }
+        });
+    } catch (err) {
+        console.error("Error fetching quiz by ID:", err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+
+/**
+ * DELETE /api/quiz/:id
+ * Delete a quiz by ID
+ */
+export const deleteQuiz = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { error } = await supabaseAdmin
+            .from("quizzes")
+            .delete()
+            .eq("id", id);
+
+        if (error) throw new Error(error.message);
+
+        res.json({ success: true, message: "Quiz deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting quiz:", err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+};
+

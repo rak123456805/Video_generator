@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { Brain, Loader2, CheckCircle2, XCircle, ChevronRight, ChevronLeft, RotateCcw, Video, Play } from "lucide-react";
+import { Brain, Loader2, CheckCircle2, XCircle, ChevronRight, ChevronLeft, RotateCcw, Video, Play, BookOpen, Sparkles, ArrowRight, ArrowLeft } from "lucide-react";
 import apiClient from "../../api/client";
 import { useVideo } from "../contexts/VideoContext";
 import { useAuth } from "../contexts/AuthContext";
-import { saveQuizResult, getQuizResults } from "../../api/quizApi";
+import { saveQuizResult, getQuizResults, generateQuizApi } from "../../api/quizApi";
 
 interface QuizQuestion {
     question: string;
@@ -17,9 +17,10 @@ interface QuizSectionProps {
     topic: string;
     scriptSlides: any[];
     language: string;
+    onNavigateToLibrary?: () => void;
 }
 
-export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideoSlides, language }: QuizSectionProps) {
+export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideoSlides, language, onNavigateToLibrary }: QuizSectionProps) {
     const { recentVideos, videoData, setVideoData } = useVideo();
     const { user, session } = useAuth();
     const currentUserId = user?.id || null;
@@ -45,6 +46,7 @@ export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideo
     const [selectedAnswers, setSelectedAnswers] = useState<(number | null)[]>([]);
     const [submittedQuestions, setSubmittedQuestions] = useState<boolean[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isGeneratingNext, setIsGeneratingNext] = useState(false);
     const [quizCompleted, setQuizCompleted] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [history, setHistory] = useState<any[]>([]);
@@ -274,6 +276,41 @@ export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideo
         setQuizCompleted(false);
     };
 
+    /* ---------------- GENERATE NEXT QUIZ (10 QUESTIONS) ---------------- */
+    const handleGenerateNextQuiz = async () => {
+        setIsGeneratingNext(true);
+        setError(null);
+        try {
+            const currentTopic = videoData.topic || activeVideoTopic || "AI Quiz";
+            const cleanTopic = currentTopic.replace(/(\(Quiz\s+\d+\)|- Quiz\s+\d+|\(Part\s+\d+\)|- Part\s+\d+)/i, "").trim();
+            const result = await generateQuizApi({
+                topic: cleanTopic,
+                questionCount: 10,
+                isNextQuiz: true,
+                previousQuestions: questions,
+                language: language || "en",
+            });
+
+            if (result.success && result.questions) {
+                setVideoData({
+                    quiz: result.questions,
+                    quizId: result.quizId,
+                    topic: result.topic,
+                    showQuiz: true,
+                });
+                setCurrentQuestionIndex(0);
+                setSelectedAnswers(new Array(result.questions.length).fill(null));
+                setSubmittedQuestions(new Array(result.questions.length).fill(false));
+                setQuizCompleted(false);
+            }
+        } catch (err: any) {
+            console.error("Failed to generate next quiz:", err);
+            setError(err?.response?.data?.message || "Failed to generate next quiz.");
+        } finally {
+            setIsGeneratingNext(false);
+        }
+    };
+
     /* ---------------- CALCULATE SCORE ---------------- */
     const calculateScore = () => {
         let correct = 0;
@@ -295,14 +332,37 @@ export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideo
     if (questions.length === 0 && !isGenerating) {
         return (
             <div className="max-w-4xl mx-auto space-y-8">
-                {/* Quiz Library Header */}
+                {/* Banner to open dedicated Quiz Library */}
+                <div className="rounded-3xl p-6 bg-gradient-to-r from-purple-900/40 via-indigo-900/30 to-[#0b031a] border border-purple-500/30 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0">
+                            <BookOpen className="w-6 h-6 text-purple-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-white font-bold text-lg">Browse Dedicated Quiz Library</h3>
+                            <p className="text-slate-300 text-xs mt-0.5">
+                                View all your saved quizzes, retake any quiz, or generate the next 10-question follow-up test.
+                            </p>
+                        </div>
+                    </div>
+                    {onNavigateToLibrary && (
+                        <button
+                            onClick={onNavigateToLibrary}
+                            className="px-6 py-3 rounded-full text-xs font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-lg shadow-purple-600/30 transition-all flex items-center gap-2 shrink-0"
+                        >
+                            <BookOpen className="w-4 h-4" /> Open Quiz Library <ArrowRight className="w-4 h-4" />
+                        </button>
+                    )}
+                </div>
+
+                {/* Course Video Quiz Generator */}
                 <div>
-                    <h2 className="text-2xl font-black text-white flex items-center gap-2 mb-2">
-                        <Brain className="w-7 h-7 text-purple-400 animate-pulse" />
-                        AI Quiz Library
+                    <h2 className="text-xl font-black text-white flex items-center gap-2 mb-2">
+                        <Brain className="w-6 h-6 text-purple-400" />
+                        Generate Quiz from Videos
                     </h2>
                     <p className="text-slate-400 text-sm">
-                        Test your comprehension by taking an AI-generated quiz on any of your created videos below.
+                        Or pick any course from your video library below to generate a new 10-question quiz.
                     </p>
                 </div>
 
@@ -512,12 +572,12 @@ export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideo
                     })}
                 </div>
 
-                <div className="flex gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button
                         onClick={handleRetryQuiz}
-                        className="flex-1 px-6 py-3 rounded-xl border-2 border-slate-700 
+                        className="px-5 py-3 rounded-xl border border-slate-700 
                        hover:border-purple-400 bg-slate-900
-                       text-slate-200 font-medium hover:bg-slate-800
+                       text-slate-200 font-semibold text-sm hover:bg-slate-800
                        transition-all duration-300 shadow-md hover:shadow-lg
                        flex items-center justify-center gap-2"
                     >
@@ -525,19 +585,43 @@ export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideo
                         Retry Quiz
                     </button>
                     <button
-                        onClick={() => {
-                            // Force regenerate a new quiz via API
-                            setVideoData({ quiz: null, quizId: null, showQuiz: false });
-                            setSelectedAnswers([]);
-                            setSubmittedQuestions([]);
-                            setQuizCompleted(false);
-                        }}
-                        className="flex-1 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 
-                       hover:from-purple-700 hover:to-indigo-700 text-white font-medium
+                        onClick={handleGenerateNextQuiz}
+                        disabled={isGeneratingNext}
+                        className="px-5 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 
+                       hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm
                        transition-all duration-300 shadow-lg hover:shadow-xl
-                       transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                       transform hover:-translate-y-0.5 flex items-center justify-center gap-2 disabled:opacity-50"
                     >
-                        <Brain className="w-4 h-4" />
+                        {isGeneratingNext ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Generating Next (10 Qs)...
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles className="w-4 h-4" />
+                                Generate Next Quiz (10 Qs)
+                            </>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => {
+                            if (onNavigateToLibrary) {
+                                onNavigateToLibrary();
+                            } else {
+                                setVideoData({ quiz: null, quizId: null, showQuiz: false });
+                                setSelectedAnswers([]);
+                                setSubmittedQuestions([]);
+                                setQuizCompleted(false);
+                            }
+                        }}
+                        className="px-5 py-3 rounded-xl border border-purple-500/30 
+                       hover:border-purple-400 bg-purple-950/30
+                       text-purple-200 font-semibold text-sm hover:bg-purple-900/40
+                       transition-all duration-300 shadow-md hover:shadow-lg
+                       flex items-center justify-center gap-2"
+                    >
+                        <BookOpen className="w-4 h-4" />
                         Quiz Library
                     </button>
                 </div>
@@ -548,6 +632,21 @@ export function QuizSection({ topic: activeVideoTopic, scriptSlides: activeVideo
     /* ---------------- RENDER: ACTIVE QUIZ ---------------- */
     return (
         <div className="max-w-4xl mx-auto bg-[#0b031a]/60 border border-purple-500/20 rounded-2xl p-8 shadow-xl">
+            {/* Top Bar Navigation */}
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-purple-500/15">
+                <button
+                    onClick={() => {
+                        if (onNavigateToLibrary) onNavigateToLibrary();
+                        else setVideoData({ showQuiz: false });
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-300 hover:text-white transition-colors"
+                >
+                    <ArrowLeft className="w-4 h-4" /> Back to Quiz Library
+                </button>
+                <span className="text-xs font-bold text-slate-400 truncate max-w-sm">
+                    {videoData.topic || activeVideoTopic || "AI Quiz"}
+                </span>
+            </div>
             {/* Progress Bar */}
             <div className="mb-6">
                 <div className="flex justify-between items-center mb-2">

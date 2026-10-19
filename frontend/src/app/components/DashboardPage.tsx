@@ -6,12 +6,13 @@ import { GenerateVideoSection } from './GenerateVideoSection';
 import { RecentVideos } from './RecentVideos';
 import { AnalyticsSection } from './AnalyticsSection';
 import { QuizSection } from './QuizSection';
+import { QuizLibrarySection } from './QuizLibrarySection';
 import { GoogleDriveSettings } from './GoogleDriveSettings';
 import {
   Video, TrendingUp, Clock, Calendar,
   Sparkles, ArrowUpRight, Zap, Users,
   Plus, Eye, BarChart2, CheckCircle2, Shield,
-  Brain, Star
+  Brain, Star, BookOpen
 } from 'lucide-react';
 import { useVideo } from '../contexts/VideoContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -85,7 +86,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     const page = params.get('page');
 
     if (page === 'dashboard' && tab) {
-      const validTabs = ['dashboard', 'generate', 'videos', 'analytics', 'quiz', 'settings'];
+      const validTabs = ['dashboard', 'generate', 'videos', 'quiz-library', 'analytics', 'quiz', 'settings'];
       if (validTabs.includes(tab)) {
         return tab;
       }
@@ -122,7 +123,7 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
     const tab = params.get('tab');
     const page = params.get('page');
     if (page === 'dashboard' && tab) {
-      const validTabs = ['dashboard', 'generate', 'videos', 'analytics', 'quiz', 'settings'];
+      const validTabs = ['dashboard', 'generate', 'videos', 'quiz-library', 'analytics', 'quiz', 'settings'];
       if (validTabs.includes(tab)) {
         setActiveTab(tab);
       }
@@ -249,9 +250,9 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
 
   const quickActions = [
     { icon: Sparkles, label: 'Generate Video', sub: 'Create new AI course', action: () => setActiveTab('generate'), from: '#301979', to: '#6331E8' },
-    { icon: BarChart2, label: 'Analytics', sub: 'View performance', action: () => setActiveTab('analytics'), from: '#1e1b4b', to: '#4338ca' },
-    { icon: Users, label: 'Quiz Mode', sub: 'Test comprehension', action: () => setActiveTab('quiz'), from: '#4c1d95', to: '#7e22ce' },
-    { icon: Zap, label: 'My Videos', sub: 'Browse library', action: () => setActiveTab('videos'), from: '#581c87', to: '#9333ea' },
+    { icon: BookOpen, label: 'Quiz Library', sub: 'Practice & generate', action: () => setActiveTab('quiz-library'), from: '#3b0764', to: '#6b21a8' },
+    { icon: Users, label: 'Quiz Mode', sub: 'Active question test', action: () => setActiveTab('quiz'), from: '#4c1d95', to: '#7e22ce' },
+    { icon: Zap, label: 'My Videos', sub: 'Browse course library', action: () => setActiveTab('videos'), from: '#581c87', to: '#9333ea' },
   ];
 
 
@@ -477,15 +478,38 @@ export function DashboardPage({ onNavigate }: DashboardPageProps) {
                 </motion.div>
               )}
 
+              {/* ── QUIZ LIBRARY TAB ── */}
+              {activeTab === 'quiz-library' && (
+                <motion.div key="quiz-library" variants={tabVariants} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.3 }} className="space-y-6">
+                  <QuizLibrarySection
+                    onNavigateToQuiz={() => setActiveTab('quiz')}
+                    onNavigateToGenerate={() => setActiveTab('generate')}
+                  />
+                </motion.div>
+              )}
+
               {/* ── QUIZ TAB ── */}
               {activeTab === 'quiz' && (
                 <motion.div key="quiz" variants={tabVariants} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.3 }} className="space-y-6">
-                  <div>
-                    <h1 className="text-3xl font-black text-white mb-1">Quiz Mode</h1>
-                    <p className="text-slate-400 text-sm">Test your knowledge with AI-generated course quizzes</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h1 className="text-3xl font-black text-white mb-1">Quiz Mode</h1>
+                      <p className="text-slate-400 text-sm">Test your knowledge with AI-generated course quizzes</p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTab('quiz-library')}
+                      className="px-5 py-2.5 rounded-full text-xs font-bold text-purple-300 hover:text-white bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 transition-all flex items-center gap-2"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" /> View Quiz Library
+                    </button>
                   </div>
                   <div className="rounded-3xl overflow-hidden bg-[#0d041c]/90 border border-purple-500/25 p-6 shadow-xl">
-                    <QuizSection topic={videoData.topic} scriptSlides={videoData.scriptSlides} language={videoData.language} />
+                    <QuizSection
+                      topic={videoData.topic}
+                      scriptSlides={videoData.scriptSlides}
+                      language={videoData.language}
+                      onNavigateToLibrary={() => setActiveTab('quiz-library')}
+                    />
                   </div>
                 </motion.div>
               )}
